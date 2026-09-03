@@ -624,6 +624,16 @@
       });
     }
 
+    // 有效期输入：自动整理为 MM/YY
+    const expiryInput = $('#card-expiry', root);
+    if (expiryInput) {
+      expiryInput.addEventListener('input', () => {
+        let digits = expiryInput.value.replace(/\D/g, '').slice(0, 4);
+        if (digits.length > 2) digits = `${digits.slice(0, 2)}/${digits.slice(2)}`;
+        expiryInput.value = digits;
+      });
+    }
+
     // 色板
     const colorPicker = $('#color-picker', root);
     if (colorPicker) {
