@@ -767,7 +767,7 @@
     }
     const app = $('#app');
     app.innerHTML = mainMarkup();
-    bindMainEvents();
+    if (!state.loading) bindMainEvents();
   }
 
   // 注册 Service Worker（PWA 离线缓存）
