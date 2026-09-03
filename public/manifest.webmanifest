@@ -1,0 +1,17 @@
+{
+  "name": "MyReminder 到期提醒",
+  "short_name": "MyReminder",
+  "description": "银行卡与网站会员到期管理",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#eef1fb",
+  "theme_color": "#3b6bfa",
+  "lang": "zh-CN",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
