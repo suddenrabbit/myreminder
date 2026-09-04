@@ -12,7 +12,7 @@
     {
       "binding": "DB",
       "database_name": "myreminder",
-      "database_id": "262b0881-7fbd-4386-9d8e-ee0339d484f2"
+      "database_id": "262b0881-7fbd-4386-9d8e-ee0339d484f2",
       "migrations_dir": "migrations"
     }
   ],

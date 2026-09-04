@@ -9,4 +9,5 @@ dist/
 .idea/
 .vscode/
 .private/
+/production-seed.sql
 /README.md
