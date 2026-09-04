@@ -158,8 +158,8 @@ input, select, textarea { font: inherit; color: inherit; }
   padding: 16px 14px;
   background: var(--surface);
   border-radius: var(--radius);
-  border-left: 6px solid var(--card-color, #3b6bfa);
-  box-shadow: 0 4px 14px rgba(30, 41, 80, 0.06);
+  border: 2px solid var(--card-color, #3b6bfa);
+  box-shadow: 0 4px 14px rgba(30, 41, 80, 0.05);
   transition: transform 0.12s, box-shadow 0.12s;
   cursor: pointer;
 }
