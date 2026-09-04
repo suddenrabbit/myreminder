@@ -227,7 +227,7 @@
     const text = shown ? formatGroups(card.number) : maskNumber(card.number);
     const digits = String(card.number || '').replace(/\D/g, '');
     if (!digits) {
-      return '<div class="card-number"><span class="num-text empty">未填写卡号</span></div>';
+      return '';
     }
     return `<div class="card-number">
       <button class="num-copy ${shown ? 'revealed' : ''}" data-copy="${card.id}" title="点击复制完整卡号">
@@ -241,14 +241,16 @@
   // 连续行内文本，用完可用宽度后自然换行，包括长年费和权益。
   const creditMeta = (card) => {
     const fields = [
-      `有效期 <b>${esc(card.expiry || '—')}</b>`,
-      `额度 <b>${money(card.limit)}</b>`,
-      `账单日 <b>${dayLabel(card.billingDay)}</b>`,
-      `还款日 <b>${dayLabel(card.repaymentDay)}</b>`,
-      `年费 <b>${esc(card.annualFee || '—')}</b>`,
-      `权益 <b>${esc(card.benefits || '—')}</b>`,
-    ];
-    return `<div class="meta-line">${fields.join(' · ')}</div>`;
+      ['有效期', card.expiry, esc],
+      ['额度', card.limit, money],
+      ['账单日', card.billingDay, dayLabel],
+      ['还款日', card.repaymentDay, dayLabel],
+      ['年费', card.annualFee, esc],
+      ['权益', card.benefits, esc],
+    ]
+      .filter(([, value]) => value !== null && value !== undefined && String(value).trim() !== '')
+      .map(([label, value, format]) => `${label} <b>${format(value)}</b>`);
+    return fields.length ? `<div class="meta-line">${fields.join(' · ')}</div>` : '';
   };
 
   const bankCardMarkup = (card, index) => `
@@ -301,6 +303,25 @@
     return `<div class="empty-state">${text}</div>`;
   };
 
+  const cardsSummaryMarkup = () => {
+    const creditCards = state.cards.filter((card) => card.type === 'credit');
+    const debitCount = state.cards.filter((card) => card.type === 'debit').length;
+    const bankLimits = new Map();
+    for (const card of creditCards) {
+      // 同一家银行共享额度只计一次；记录不一致时取该银行最高额度。
+      const bank = presetFor('bank', card.bankKey)?.name || String(card.bankName || '').trim();
+      const limit = Number(card.limit);
+      if (Number.isFinite(limit) && limit >= 0) {
+        bankLimits.set(bank, Math.max(bankLimits.get(bank) || 0, limit));
+      }
+    }
+    const total = [...bankLimits.values()].reduce((sum, limit) => sum + limit, 0);
+    return `<p class="cards-summary" aria-label="银行卡汇总">
+      <span>借记卡 ${debitCount} 张</span><span>信用卡 ${creditCards.length} 张</span>
+      <span title="同一家银行只计一次，取该银行最高信用额度">总额度 ${total.toLocaleString('zh-CN', { maximumFractionDigits: 2 })} 元</span>
+    </p>`;
+  };
+
   const mainMarkup = () => {
     if (state.loading) return `<div class="center-hint">加载中…</div>`;
     const cardsBody = state.cards.length
@@ -313,6 +334,7 @@
       ${headerMarkup()}
       <main class="list-area">
         <section class="list-panel ${state.tab === 'cards' ? 'active' : ''}" id="panel-cards">
+          ${cardsSummaryMarkup()}
           ${cardsBody}
         </section>
         <section class="list-panel ${state.tab === 'sites' ? 'active' : ''}" id="panel-sites">
@@ -755,6 +777,7 @@
         if (tab === 'cards') await submitCardForm(id);
         else await submitSiteForm(id);
         closeSheet();
+        render();
       } catch (error) {
         toast(error.message);
       }
@@ -888,9 +911,9 @@
     }
   }
 
-  // 每种银行卡按实际最高内容等高；缩放、旋转屏幕时重新计算，不裁切详情。
+  // 借记卡按实际最高内容等高；信用卡随内容自然撑高；缩放、旋转屏幕时重新计算，不裁切详情。
   function equalizeCardHeights() {
-    for (const type of ['credit', 'debit']) {
+    for (const type of ['debit']) {
       const cards = $$(`.${type}-card .bank-card-border`);
       cards.forEach((card) => { card.style.height = ''; });
       const height = Math.ceil(Math.max(0, ...cards.map((card) => card.getBoundingClientRect().height)));

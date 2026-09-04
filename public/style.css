@@ -117,6 +117,12 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .list-area { padding: 0 18px; display: block; }
 .list-panel { display: none; }
 .list-panel.active { display: block; }
+.cards-summary {
+  display: flex; flex-wrap: wrap; gap: 4px 14px;
+  margin: 2px 2px 12px;
+  color: var(--text-2); font-size: 12px; line-height: 1.6;
+}
+.cards-summary span { white-space: nowrap; }
 .center-hint {
   text-align: center; color: var(--text-3);
   padding: 60px 0; font-size: 15px;
@@ -147,7 +153,7 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   padding: 12px;
   background: var(--surface);
   border-radius: var(--radius);
-  border: 2px solid var(--card-color, #3b6bfa);
+  border: 1px solid var(--card-color, #3b6bfa);
   box-shadow: 0 4px 14px rgba(30, 41, 80, 0.05);
   transition: transform 0.12s, box-shadow 0.12s;
   cursor: pointer;
@@ -253,7 +259,7 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 /* 详情使用普通行内排版，不按字段分组或预先换行。 */
 .meta-line { font-size: 12px; color: var(--text-2); line-height: 1.7; overflow-wrap: anywhere; }
 .meta-line b { color: var(--text); font-weight: 500; }
-.credit-card .bank-card-border { min-height: 136px; }
+.credit-card .bank-card-border { padding-top: 10px; padding-bottom: 10px; }
 .debit-card .bank-card-border { min-height: 104px; }
 
 .drag-handle {
@@ -281,7 +287,7 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   padding: 15px 14px;
   background: var(--surface);
   border-radius: var(--radius);
-  border: 2px solid var(--card-color, #3b6bfa);
+  border: 1px solid var(--card-color, #3b6bfa);
   box-shadow: 0 4px 14px rgba(30, 41, 80, 0.05);
   cursor: pointer;
   transition: transform 0.12s, box-shadow 0.12s;
