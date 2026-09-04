@@ -353,6 +353,7 @@
         panel,
         handle,
         pointerId: event.pointerId,
+        type: event.pointerType || 'mouse',
         startX: event.clientX,
         startY: event.clientY,
         lastY: event.clientY,
@@ -361,6 +362,8 @@
       };
       if (drag.moved) drag.card.classList.add('dragging');
       try { event.target.setPointerCapture(event.pointerId); } catch (_) {}
+      // 兜底：拖拽中页面失焦（切后台 / 鼠标在窗口外松开）也结束拖拽，防止卡片残留半透明
+      window.addEventListener('blur', onEnd);
       // 监听挂 document 捕获阶段：无论指针移到哪个元素、capture 是否生效，
       // move/up 都能第一时间收到（pointer 事件天然走捕获与冒泡，捕获层最稳）
       document.addEventListener('pointermove', onMove, true);
@@ -370,6 +373,11 @@
 
     function onMove(event) {
       if (!drag) return;
+      // 鼠标已松开但 pointerup 丢失（如窗口外松手）：主动结束，避免卡片残留半透明
+      if (drag.type === 'mouse' && drag.moved && event.buttons === 0) {
+        onEnd();
+        return;
+      }
       // 拖拽期间视图被重绘则放弃本次拖拽，避免把游离卡片插回新列表
       if (!drag.card.isConnected) {
         onEnd();
@@ -393,8 +401,14 @@
       document.removeEventListener('pointermove', onMove, true);
       document.removeEventListener('pointerup', onEnd, true);
       document.removeEventListener('pointercancel', onEnd, true);
+      window.removeEventListener('blur', onEnd);
       if (drag.moved) {
+        // 先移除被拖卡片，再兜底清理面板内任何残留的 .dragging（防引用错位/异常路径漏清）
+        const panel = drag.panel;
         drag.card.classList.remove('dragging');
+        if (panel && panel.querySelectorAll) {
+          panel.querySelectorAll('.bank-card.dragging').forEach((el) => el.classList.remove('dragging'));
+        }
         dragSuppressUntil = Date.now() + 350; // 吞掉随后的系统 click，避免误开编辑
         persistCardOrder();
       }
