@@ -18,6 +18,7 @@
   --shadow: 0 10px 30px rgba(30, 41, 80, 0.12);
   --radius: 16px;
   --radius-lg: 22px;
+  --tab-height: 76px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
@@ -30,7 +31,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
 }
-#app { max-width: 720px; margin: 0 auto; min-height: 100%; padding-bottom: 96px; }
+#app { max-width: 720px; margin: 0 auto; min-height: 100%; padding-bottom: calc(var(--tab-height) + var(--safe-bottom) + 94px); }
 
 button { font: inherit; cursor: pointer; border: none; background: none; color: inherit; }
 input, select, textarea { font: inherit; color: inherit; }
@@ -94,38 +95,27 @@ input, select, textarea { font: inherit; color: inherit; }
 .icon-btn:active { background: var(--surface-2); }
 
 .tab-bar {
-  position: sticky; top: calc(env(safe-area-inset-top, 0px) + 56px);
-  z-index: 19;
+  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+  width: 100%; max-width: 720px; z-index: 30;
   display: grid; grid-template-columns: 1fr 1fr;
-  gap: 6px; margin: 2px 18px 14px;
-  padding: 5px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 14px;
+  height: calc(var(--tab-height) + var(--safe-bottom));
+  padding: 6px 18px calc(6px + var(--safe-bottom));
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(18px);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -4px 20px rgba(30, 41, 80, 0.05);
 }
 .tab-btn {
-  padding: 10px 8px;
-  border-radius: 10px;
-  font-size: 15px; font-weight: 600;
-  color: var(--text-2);
-  display: flex; align-items: center; justify-content: center; gap: 7px;
-  transition: all 0.18s;
+  border-radius: 14px; color: var(--text-2);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px; font-size: 12px; font-weight: 600;
 }
-.tab-btn em {
-  font-style: normal;
-  min-width: 20px; height: 20px; padding: 0 6px;
-  border-radius: 999px;
-  background: var(--surface-2);
-  color: var(--text-3);
-  font-size: 12px; font-weight: 700;
-  display: inline-flex; align-items: center; justify-content: center;
-}
-.tab-btn.active {
-  background: var(--primary);
-  color: #fff;
-  box-shadow: 0 4px 12px rgba(59, 107, 250, 0.3);
-}
-.tab-btn.active em { background: rgba(255, 255, 255, 0.22); color: #fff; }
+.tab-icon { width: 25px; height: 25px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.tab-btn > span { display: flex; align-items: center; gap: 5px; }
+.tab-btn em { font-style: normal; font-size: 10px; padding: 0 5px; border-radius: 8px; background: var(--surface-2); }
+.tab-btn.active { color: var(--primary); background: var(--primary-weak); }
+.tab-btn.active em { background: var(--surface); }
+button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 /* ------------------------------- 列表 ------------------------------- */
 
@@ -190,19 +180,22 @@ input, select, textarea { font: inherit; color: inherit; }
 .bank-card-title {
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-height: 20px;
+  gap: 5px;
+  height: 24px;
+  min-width: 0;
 }
 .bank-name, .site-name {
   font-size: 16px; font-weight: 700;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.type-tag {
-  flex: 0 0 auto;
+.bank-name { flex: 0 1 auto; min-width: 2em; }
+.detail-tag { min-width: 0; max-width: 25%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: var(--primary-weak); color: var(--primary); }
+.type-tag, .detail-tag {
   font-size: 11px; font-weight: 600;
-  padding: 2px 8px;
+  padding: 2px 5px;
   border-radius: 999px;
 }
+.type-tag { flex: 0 0 auto; }
 .type-tag.credit { background: #fdecec; color: #d11f2e; }
 .type-tag.debit { background: var(--primary-weak); color: var(--primary); }
 
@@ -217,13 +210,13 @@ input, select, textarea { font: inherit; color: inherit; }
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 42px;
-  padding: 0 6px;
+  min-height: 42px;
+  padding: 0;
   background: transparent;
   border: 0;
   border-radius: 10px;
   font-family: 'SF Mono', ui-monospace, Menlo, monospace;
-  font-size: 15px; font-weight: 600; letter-spacing: 0.5px;
+  font-size: clamp(18px, 4.8vw, 25px); font-weight: 600; letter-spacing: 0;
   color: var(--text);
   text-align: left;
   cursor: pointer;
@@ -231,7 +224,8 @@ input, select, textarea { font: inherit; color: inherit; }
   transition: background-color 0.12s;
 }
 .num-copy:active { background: rgba(59, 107, 250, 0.08); }
-.num-copy .num-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.num-copy .num-text { min-width: 0; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
+.num-copy .num-text::-webkit-scrollbar { display: none; }
 .num-copy.copied .num-text,
 .num-copy.copied .copy-hint { color: #00a550; }
 .num-text.empty {
@@ -251,7 +245,7 @@ input, select, textarea { font: inherit; color: inherit; }
   flex: 0 0 auto;
   width: 42px;
   height: 42px;
-  margin-left: 8px;
+  margin-left: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -261,29 +255,15 @@ input, select, textarea { font: inherit; color: inherit; }
 }
 .reveal-btn:active { background: rgba(59, 107, 250, 0.1); }
 
-.chips { display: inline-flex; gap: 5px; vertical-align: middle; }
-.chips i {
-  font-style: normal;
-  font-size: 11px; font-weight: 600;
-  color: var(--primary);
-  background: var(--primary-weak);
-  padding: 1px 7px; border-radius: 999px;
-}
-/* 辅助信息行：单行紧凑展示，过长自动截断 */
-.meta-line {
-  font-size: 12px;
-  color: var(--text-2);
-  line-height: 1.65;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.meta-line b { color: var(--text); font-weight: 600; }
-.meta-line.benefit { color: var(--text-3); }
+/* 详情使用普通行内排版，不按字段分组或预先换行。 */
+.meta-line { font-size: 12px; color: var(--text-2); line-height: 1.7; overflow-wrap: anywhere; }
+.meta-line b { color: var(--text); font-weight: 500; }
+.credit-card .bank-card-border { min-height: 136px; }
+.debit-card .bank-card-border { min-height: 104px; }
 
 .drag-handle {
   flex: 0 0 auto;
-  width: 30px; height: 52px;
+  width: 18px; height: 52px;
   display: flex; align-items: center; justify-content: center;
   color: #c3c9dc;
   font-size: 20px;
@@ -339,8 +319,9 @@ input, select, textarea { font: inherit; color: inherit; }
 
 .fab {
   position: fixed;
-  right: 20px;
-  bottom: calc(var(--safe-bottom) + 22px);
+  right: max(20px, calc((100vw - 720px) / 2 + 20px));
+  bottom: calc(var(--tab-height) + var(--safe-bottom) + 18px);
+  z-index: 31;
   width: 58px; height: 58px;
   border-radius: 50%;
   background: linear-gradient(135deg, #5b7cfa, #3b6bfa);
@@ -513,7 +494,7 @@ textarea.text-input { resize: vertical; min-height: 68px; }
 
 /* ------------------------------- Toast ------------------------------- */
 
-#toast-root { position: fixed; left: 0; right: 0; bottom: calc(var(--safe-bottom) + 90px); z-index: 60; display: flex; justify-content: center; pointer-events: none; }
+#toast-root { position: fixed; left: 0; right: 0; bottom: calc(var(--tab-height) + var(--safe-bottom) + 88px); z-index: 60; display: flex; justify-content: center; pointer-events: none; }
 .toast {
   max-width: 86%;
   background: rgba(28, 35, 51, 0.92);
@@ -539,3 +520,17 @@ textarea.text-input { resize: vertical; min-height: 68px; }
   @keyframes sheet-up { from { transform: translate(-50%, -46%); opacity: 0.4; } }
   .login-card { padding: 40px 34px 30px; }
 }
+
+@media (max-width: 480px) {
+  .list-area { padding: 0 10px; }
+  .bank-card-border { padding: 12px 10px; gap: 8px; position: relative; }
+  .bank-card .card-avatar { flex-basis: 40px; width: 40px; height: 40px; font-size: 20px; }
+  .bank-card-body { padding-right: 12px; }
+  .drag-handle { position: absolute; right: 0; top: 50%; transform: translateY(-50%); width: 22px; }
+  .bank-name { font-size: 14px; }
+  .type-tag, .detail-tag { font-size: 10px; padding: 2px 4px; }
+  .num-copy { gap: 5px; }
+  .reveal-btn { width: 32px; }
+}
+
+.num-copy.revealed .num-text { white-space: normal; overflow-wrap: anywhere; font-size: 18px; line-height: 1.35; }

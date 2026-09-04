@@ -85,9 +85,9 @@
   const maskNumber = (number) => {
     const digits = String(number || '').replace(/\D/g, '');
     if (!digits) return '未填写卡号';
-    // 紧凑掩码：只露尾号 4 位，节省横向空间（完整号可点 👁 查看）
-    if (digits.length <= 4) return digits;
-    return `•••• ${digits.slice(-4)}`;
+    // 保留首尾各四位，中间统一掩码。
+    if (digits.length <= 8) return digits;
+    return `${digits.slice(0, 4)} •••• ${digits.slice(-4)}`;
   };
 
   const formatGroups = (number) => String(number || '').replace(/\D/g, '').replace(/(\d{4})(?=\d)/g, '$1 ');
@@ -167,13 +167,17 @@
       <div class="header-count">
         <button class="icon-btn" id="logout-btn" title="退出登录" aria-label="退出登录">⏻</button>
       </div>
-    </header>
-    <nav class="tab-bar">
-      <button class="tab-btn ${state.tab === 'cards' ? 'active' : ''}" data-tab="cards">
-        银行卡 ${state.cards.length ? `<em>${state.cards.length}</em>` : ''}
+    </header>`;
+
+  const tabsMarkup = () => `
+    <nav class="tab-bar" aria-label="主导航">
+      <button class="tab-btn ${state.tab === 'cards' ? 'active' : ''}" data-tab="cards" aria-current="${state.tab === 'cards' ? 'page' : 'false'}">
+        <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18M7 15h4"/></svg>
+        <span>银行卡 ${state.cards.length ? `<em>${state.cards.length}</em>` : ''}</span>
       </button>
-      <button class="tab-btn ${state.tab === 'sites' ? 'active' : ''}" data-tab="sites">
-        网站会员 ${state.memberships.length ? `<em>${state.memberships.length}</em>` : ''}
+      <button class="tab-btn ${state.tab === 'sites' ? 'active' : ''}" data-tab="sites" aria-current="${state.tab === 'sites' ? 'page' : 'false'}">
+        <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="m7 9 2 6h6l2-6-3 2-2-4-2 4z"/></svg>
+        <span>网站会员 ${state.memberships.length ? `<em>${state.memberships.length}</em>` : ''}</span>
       </button>
     </nav>`;
 
@@ -227,7 +231,7 @@
       return '<div class="card-number"><span class="num-text empty">未填写卡号</span></div>';
     }
     return `<div class="card-number">
-      <button class="num-copy" data-copy="${card.id}" title="点击复制完整卡号">
+      <button class="num-copy ${shown ? 'revealed' : ''}" data-copy="${card.id}" title="点击复制完整卡号">
         <span class="num-text">${esc(text)}</span>
         <span class="copy-hint">复制</span>
       </button>
@@ -235,36 +239,29 @@
     </div>`;
   };
 
-  // 第三行辅助信息（紧凑聚合，减少占高）：
-  // 行1 卡种类·组织 与 有效期·额度；行2 账单日·还款日·年费；行3 权益（单行截断）
+  // 连续行内文本，用完可用宽度后自然换行，包括长年费和权益。
   const creditMeta = (card) => {
-    const chips = [card.kind, card.network].filter(Boolean).map((c) => `<i>${esc(c)}</i>`).join('');
-    const chipHtml = chips ? `<span class="chips">${chips}</span>` : '';
-    const l1 = [];
-    if (card.expiry) l1.push(`有效期 <b>${esc(card.expiry)}</b>`);
-    if (card.limit !== null && card.limit !== undefined && card.limit !== '') l1.push(`额度 <b>${money(card.limit)}</b>`);
-    const l2 = [];
-    if (card.billingDay) l2.push(`账单日 <b>${dayLabel(card.billingDay)}</b>`);
-    if (card.repaymentDay) l2.push(`还款日 <b>${dayLabel(card.repaymentDay)}</b>`);
-    if (card.annualFee) l2.push(`年费 <b>${esc(card.annualFee)}</b>`);
-    const html = [];
-    const a = [chipHtml, ...l1.map((x) => `<span>${x}</span>`)].filter(Boolean).join(' · ');
-    if (a) html.push(`<div class="meta-line">${a}</div>`);
-    const b = l2.join(' · ');
-    if (b) html.push(`<div class="meta-line">${b}</div>`);
-    if (card.benefits) html.push(`<div class="meta-line benefit">权益 <b>${esc(card.benefits)}</b></div>`);
-    return html.join('');
+    const fields = [
+      `有效期 <b>${esc(card.expiry || '—')}</b>`,
+      `额度 <b>${money(card.limit)}</b>`,
+      `账单日 <b>${dayLabel(card.billingDay)}</b>`,
+      `还款日 <b>${dayLabel(card.repaymentDay)}</b>`,
+      `年费 <b>${esc(card.annualFee || '—')}</b>`,
+      `权益 <b>${esc(card.benefits || '—')}</b>`,
+    ];
+    return `<div class="meta-line">${fields.join(' · ')}</div>`;
   };
 
   const bankCardMarkup = (card, index) => `
-    <article class="bank-card" data-id="${card.id}" data-index="${index}"
+    <article class="bank-card ${card.type === 'credit' ? 'credit-card' : 'debit-card'}" data-id="${card.id}" data-index="${index}"
              style="--card-color:${esc(card.color)}">
       <div class="bank-card-border" style="border-color:${esc(card.color)}">
         ${cardAvatar(card.bankName, card.color)}
         <div class="bank-card-body">
           <div class="bank-card-title">
-            <span class="bank-name">${esc(card.bankName)}</span>
+            <span class="bank-name" title="${esc(card.bankName)}">${esc(card.bankName)}</span>
             <span class="type-tag ${card.type}">${card.type === 'credit' ? '信用卡' : '借记卡'}</span>
+            ${card.type === 'credit' ? [card.kind, card.network].filter(Boolean).map((tag) => `<span class="detail-tag" title="${esc(tag)}">${esc(tag)}</span>`).join('') : ''}
           </div>
           ${cardNumberLine(card)}
           ${card.type === 'credit' ? creditMeta(card) : ''}
@@ -323,6 +320,7 @@
           ${sitesBody}
         </section>
       </main>
+      ${tabsMarkup()}
       <button class="fab" id="fab-btn" title="新增">＋</button>`;
   };
 
@@ -885,8 +883,28 @@
     }
     const app = $('#app');
     app.innerHTML = mainMarkup();
-    if (!state.loading) bindMainEvents();
+    if (!state.loading) {
+      bindMainEvents();
+      equalizeCardHeights();
+    }
   }
+
+  // 每种银行卡按实际最高内容等高；缩放、旋转屏幕时重新计算，不裁切详情。
+  function equalizeCardHeights() {
+    for (const type of ['credit', 'debit']) {
+      const cards = $$(`.${type}-card .bank-card-border`);
+      cards.forEach((card) => { card.style.height = ''; });
+      const height = Math.ceil(Math.max(0, ...cards.map((card) => card.getBoundingClientRect().height)));
+      if (height) cards.forEach((card) => { card.style.height = `${height}px`; });
+    }
+  }
+  let listWidth = 0;
+  new ResizeObserver(([entry]) => {
+    if (entry.contentRect.width === listWidth) return;
+    listWidth = entry.contentRect.width;
+    equalizeCardHeights();
+  }).observe($('#app'));
+  document.fonts.ready.then(equalizeCardHeights);
 
   // 注册 Service Worker（PWA 离线缓存）
   if ('serviceWorker' in navigator) {
