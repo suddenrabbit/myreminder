@@ -23,7 +23,7 @@
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { height: 100%; }
+html, body { height: 100%; touch-action: pan-x pan-y; }
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Segoe UI', 'Microsoft YaHei', sans-serif;
   background: var(--bg);
@@ -535,3 +535,21 @@ textarea.text-input { resize: vertical; min-height: 68px; }
 }
 
 .num-copy.revealed .num-text { white-space: normal; overflow-wrap: anywhere; font-size: 18px; line-height: 1.35; }
+
+.update-notice {
+  position: fixed; z-index: 35;
+  left: 50%; transform: translateX(-50%);
+  bottom: calc(var(--tab-height) + var(--safe-bottom) + 12px);
+  width: max-content; max-width: calc(100% - 100px);
+  display: flex; align-items: center; flex-wrap: wrap; justify-content: center; gap: 4px 10px;
+  padding: 6px 12px; border: 1px solid var(--border); border-radius: 14px;
+  background: var(--surface); color: var(--text-2); font-size: 12px;
+  box-shadow: 0 4px 14px rgba(30, 41, 80, 0.08);
+}
+.update-notice[hidden] { display: none; }
+.update-notice button { color: var(--primary); font-weight: 600; min-height: 36px; }
+
+/* 手机输入框至少 16px，避免聚焦时页面自动放大。 */
+@media (max-width: 767px), (pointer: coarse) {
+  input, select, textarea, .text-input, .select-input { font-size: 16px; }
+}

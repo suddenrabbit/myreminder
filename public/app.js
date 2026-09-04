@@ -10,6 +10,8 @@
 (() => {
   'use strict';
 
+  const APP_VERSION = new URL(document.currentScript.src).searchParams.get('v');
+
   const { banks: BANK_PRESETS, sites: SITE_PRESETS } = window.MYREMINDER_BRANDS;
 
   const $ = (sel, root = document) => root.querySelector(sel);
@@ -937,9 +939,75 @@
   }).observe($('#app'));
   document.fonts.ready.then(equalizeCardHeights);
 
-  // 注册 Service Worker（PWA 离线缓存）
+  // 保留单指滚动，阻止页面捏合缩放（包括 Safari 的手势事件）。
+  for (const type of ['gesturestart', 'gesturechange']) {
+    document.addEventListener(type, (event) => event.preventDefault(), { passive: false });
+  }
+  document.addEventListener('touchmove', (event) => {
+    if (event.touches.length > 1) event.preventDefault();
+  }, { passive: false });
+  document.addEventListener('wheel', (event) => {
+    if (event.ctrlKey) event.preventDefault();
+  }, { passive: false });
+
+  // 更新缓存不自动刷新页面；用户主动应用新版，避免丢失表单输入。
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(() => {});
+    const updates = $('#update-notice');
+    let checking = false;
+    let lastCheck = 0;
+
+    function inspectController() {
+      const worker = navigator.serviceWorker.controller;
+      if (!worker) return;
+      const channel = new MessageChannel();
+      const timeout = setTimeout(() => channel.port1.close(), 3000);
+      channel.port1.onmessage = ({ data }) => {
+        clearTimeout(timeout);
+        channel.port1.close();
+        if (worker !== navigator.serviceWorker.controller || data?.type !== 'VERSION') return;
+        updates.hidden = !data.version || data.version === APP_VERSION;
+      };
+      worker.postMessage({ type: 'GET_VERSION' }, [channel.port2]);
+    }
+
+    $('#apply-update').addEventListener('click', () => {
+      if ($('#sheet-root').classList.contains('open') || session.busy) {
+        toast('请先保存或关闭当前表单，再更新');
+        return;
+      }
+      if (!navigator.onLine) {
+        toast('请联网后更新');
+        return;
+      }
+      window.location.reload();
+    });
+
+    navigator.serviceWorker.addEventListener('controllerchange', inspectController);
+    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then((registration) => {
+      async function checkForUpdate(force = false) {
+        if (!navigator.onLine || document.visibilityState === 'hidden' || checking) return;
+        if (!force && Date.now() - lastCheck < 60_000) return;
+        checking = true;
+        lastCheck = Date.now();
+        try {
+          await registration.update();
+          // 也检查已被其他窗口激活的新版，或后台期间错过的更新。
+          if (!registration.installing) inspectController();
+        } catch (_) {
+          // 更新检查失败不影响正常使用；下次联网或回到前台再检查。
+        } finally {
+          checking = false;
+        }
+      }
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') checkForUpdate();
+      });
+      window.addEventListener('online', () => checkForUpdate(true));
+      window.addEventListener('pageshow', () => checkForUpdate());
+      // 长时间停留前台也能发现发布；后台不轮询。
+      setInterval(() => checkForUpdate(), 5 * 60_000);
+      checkForUpdate(true);
+    }).catch(() => {});
   }
 
   // 首次进入：有 token 直接拉数据；无 token 走登录页
