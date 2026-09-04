@@ -13,6 +13,8 @@
       "binding": "DB",
       "database_name": "myreminder",
       "database_id": "262b0881-7fbd-4386-9d8e-ee0339d484f2",
+      // 沿用最初本地导入时的存储标识，避免正式 ID 配置后切换到空库。
+      "preview_database_id": "REPLACE_WITH_D1_DATABASE_ID",
       "migrations_dir": "migrations"
     }
   ],

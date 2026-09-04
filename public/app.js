@@ -356,8 +356,17 @@
 
     $$('.tab-btn').forEach((btn) =>
       btn.addEventListener('click', () => {
+        if (state.tab === btn.dataset.tab) return;
         state.tab = btn.dataset.tab;
-        render();
+        // 两个列表已经挂载，只切换可见状态，保留页头和图标 DOM。
+        $$('.tab-btn').forEach((tab) => {
+          const active = tab.dataset.tab === state.tab;
+          tab.classList.toggle('active', active);
+          tab.setAttribute('aria-current', active ? 'page' : 'false');
+        });
+        $('#panel-cards').classList.toggle('active', state.tab === 'cards');
+        $('#panel-sites').classList.toggle('active', state.tab === 'sites');
+        if (state.tab === 'cards') equalizeCardHeights();
       }),
     );
 

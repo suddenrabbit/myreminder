@@ -1,5 +1,5 @@
 /* RabbitReminder Service Worker — 发布前同步更新 VERSION 与 index.html 资源版本。 */
-const VERSION = 'rabbit-v6';
+const VERSION = 'rabbit-v7';
 const CACHE = `rabbitreminder-${VERSION}`;
 const APP_SHELL = ['/', '/index.html', `/style.css?v=${VERSION}`, `/app.js?v=${VERSION}`,
   `/brands.js?v=${VERSION}`, `/manifest.webmanifest?v=${VERSION}`,
