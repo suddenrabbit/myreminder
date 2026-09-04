@@ -205,11 +205,16 @@ input, select, textarea { font: inherit; color: inherit; }
   color: var(--text);
 }
 .num-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.reveal-btn {
+.reveal-btn, .copy-btn {
+  flex: 0 0 auto;
   font-size: 15px; opacity: 0.75;
   padding: 2px; line-height: 1;
+  transition: transform 0.12s, color 0.12s;
 }
-.reveal-btn:hover { opacity: 1; }
+.copy-btn { font-size: 13px; }
+.reveal-btn:hover, .copy-btn:hover { opacity: 1; }
+.copy-btn:active { transform: scale(0.9); }
+.copy-btn.copied { color: #00a550; opacity: 1; font-weight: 700; }
 
 .chips { display: inline-flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
 .chips i {

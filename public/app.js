@@ -188,11 +188,48 @@
     return `<button class="reveal-btn" data-reveal="${card.id}" title="${shown ? '隐藏' : '显示'}完整卡号">${shown ? '🙈' : '👁'}</button>`;
   };
 
+  // 一键复制完整卡号（去掉空格等分隔符，纯数字，便于支付/绑卡场景直接粘贴）
+  const copyToClipboard = async (text) => {
+    if (navigator.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch (_) {}
+    }
+    // 降级：非安全上下文或 API 被拒 → 隐藏 textarea + execCommand
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      ta.style.top = '0';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      const selection = document.getSelection();
+      const prevRange = selection.rangeCount > 0 && selection.getRangeAt(0);
+      ta.select();
+      const ok = document.execCommand('copy');
+      ta.remove();
+      if (prevRange) {
+        selection.removeAllRanges();
+        selection.addRange(prevRange);
+      }
+      return ok;
+    } catch (_) {
+      return false;
+    }
+  };
+
+  const copyBtn = (card) => `
+    <button class="copy-btn" data-copy="${card.id}" title="复制完整卡号">📋</button>`;
+
   const cardNumberLine = (card) => {
     const shown = state.reveal.has(card.id);
     const text = shown ? formatGroups(card.number) : maskNumber(card.number);
+    const digits = String(card.number || '').replace(/\D/g, '');
     return `<div class="card-number">
-      <span class="num-text">${esc(text)}</span>${revealBtn(card)}
+      <span class="num-text">${esc(text)}</span>${digits ? copyBtn(card) : ''}${revealBtn(card)}
     </div>`;
   };
 
@@ -300,10 +337,34 @@
 
     $('#fab-btn').addEventListener('click', () => openEditor(state.tab));
 
-    // 点击卡片 → 编辑；点击眼睛 → 展开完整卡号
+    // 点击卡片 → 编辑；点击眼睛 → 展开完整卡号；点击 📋 → 一键复制卡号
     $('#panel-cards').addEventListener('click', (event) => {
       // 刚结束一次拖拽时，浏览器会补发 click，这里吞掉避免误开编辑
       if (Date.now() < dragSuppressUntil) return;
+      const copyBtnClicked = event.target.closest('.copy-btn');
+      if (copyBtnClicked) {
+        const id = Number(copyBtnClicked.dataset.copy);
+        const card = state.cards.find((c) => c.id === id);
+        const digits = card ? String(card.number || '').replace(/\D/g, '') : '';
+        if (!digits) {
+          toast('未填写卡号');
+          return;
+        }
+        copyToClipboard(digits).then((ok) => {
+          if (!ok) {
+            toast('复制失败，请长按手动复制');
+            return;
+          }
+          copyBtnClicked.textContent = '✓';
+          copyBtnClicked.classList.add('copied');
+          setTimeout(() => {
+            copyBtnClicked.textContent = '📋';
+            copyBtnClicked.classList.remove('copied');
+          }, 1200);
+          toast('卡号已复制');
+        });
+        return;
+      }
       const revealBtnClicked = event.target.closest('.reveal-btn');
       if (revealBtnClicked) {
         const id = Number(revealBtnClicked.dataset.reveal);
@@ -340,8 +401,8 @@
       if (drag) return;
       const card = event.target.closest('.bank-card');
       if (!card) return;
-      // 眼睛按钮用于展开卡号，不作为拖动起点
-      if (event.target.closest('.reveal-btn')) return;
+      // 眼睛/复制按钮不作为拖动起点
+      if (event.target.closest('.reveal-btn, .copy-btn')) return;
 
       const handle = event.target.closest('.drag-handle');
       // 仅手柄起点阻止默认行为（防误触滚动/长按菜单）。
