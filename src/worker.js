@@ -129,6 +129,18 @@ const expiryMonth = (value) => {
 };
 const digits = (value) => String(value ?? '').replace(/[^\d]/g, '').slice(0, 24);
 
+const CARD_NETWORKS = [
+  { value: '银联', aliases: ['银联', '中国银联', 'unionpay'] },
+  { value: 'Visa', aliases: ['visa'] },
+  { value: 'Mastercard', aliases: ['mastercard', '万事达', '万事达卡'] },
+  { value: '美国运通', aliases: ['美国运通', '运通', 'ae', 'amex', 'americanexpress'] },
+  { value: 'JCB', aliases: ['jcb'] },
+];
+const normalizeCardNetwork = (value) => {
+  const key = String(value ?? '').trim().toLowerCase().replace(/[\s_-]+/g, '');
+  return CARD_NETWORKS.find((network) => network.aliases.includes(key))?.value || '';
+};
+
 function readCard(body) {
   const cardType = body?.card_type === 'credit' ? 'credit' : 'debit';
   const isCredit = cardType === 'credit';
@@ -139,7 +151,7 @@ function readCard(body) {
     color: hexColor(body?.color),
     card_number: digits(body?.card_number),
     card_kind: isCredit ? str(body?.card_kind, 40) : '',
-    card_network: isCredit ? str(body?.card_network, 40) : '',
+    card_network: normalizeCardNetwork(body?.card_network),
     expiry_date: isCredit ? expiryMonth(body?.expiry_date) : '',
     credit_limit: isCredit ? nullableNum(body?.credit_limit) : null,
     billing_day: isCredit ? dayInMonth(body?.billing_day) : null,
@@ -171,7 +183,7 @@ const toCard = (row) => ({
   color: row.color,
   number: row.card_number,
   kind: row.card_kind,
-  network: row.card_network,
+  network: normalizeCardNetwork(row.card_network) || row.card_network,
   expiry: row.expiry_date,
   limit: row.credit_limit,
   billingDay: row.billing_day,
@@ -201,6 +213,8 @@ async function listCards(env) {
 async function createCard(request, env) {
   const body = await request.json().catch(() => null);
   if (!body) return fail(400, '请求体格式错误');
+  if (body.card_network != null && typeof body.card_network !== 'string') return fail(400, '请选择有效的卡组织');
+  if (String(body.card_network || '').trim() && !normalizeCardNetwork(body.card_network)) return fail(400, '卡组织仅支持银联、Visa、Mastercard、美国运通、JCB');
   const data = readCard(body);
   if (!data.bank_name) return fail(400, '请填写银行名称');
   if (!data.card_number) return fail(400, '请填写卡号');
@@ -228,6 +242,8 @@ async function createCard(request, env) {
 async function updateCard(request, env, id) {
   const body = await request.json().catch(() => null);
   if (!body) return fail(400, '请求体格式错误');
+  if (body.card_network != null && typeof body.card_network !== 'string') return fail(400, '请选择有效的卡组织');
+  if (String(body.card_network || '').trim() && !normalizeCardNetwork(body.card_network)) return fail(400, '卡组织仅支持银联、Visa、Mastercard、美国运通、JCB');
   const data = readCard(body);
   if (!data.bank_name) return fail(400, '请填写银行名称');
   if (!data.card_number) return fail(400, '请填写卡号');

@@ -57,6 +57,7 @@
   const session = { token: localStorage.getItem('mr_token') || '', busy: false, error: '' };
   const state = {
     tab: 'cards', // 'cards' | 'sites'
+    cardFilter: null, // null | 'debit' | 'credit'
     cards: [],
     memberships: [],
     reveal: new Set(), // 已展开完整卡号的 card id
@@ -161,13 +162,16 @@
 
   const headerMarkup = () => `
     <header class="app-header">
-      <div class="header-brand">
-        <img class="brand-icon" src="/rabbit-wallet-192.png" alt="" width="30" height="30" />
-        <strong>RabbitReminder</strong>
+      <div class="header-main">
+        <div class="header-brand">
+          <img class="brand-icon" src="/rabbit-wallet-192.png" alt="" width="30" height="30" />
+          <strong>RabbitReminder</strong>
+        </div>
+        <div class="header-count">
+          <button class="icon-btn" id="logout-btn" title="退出登录" aria-label="退出登录">⏻</button>
+        </div>
       </div>
-      <div class="header-count">
-        <button class="icon-btn" id="logout-btn" title="退出登录" aria-label="退出登录">⏻</button>
-      </div>
+      <div id="header-summary" ${state.tab === 'cards' ? '' : 'hidden'}>${cardsSummaryMarkup()}</div>
     </header>`;
 
   const tabsMarkup = () => `
@@ -185,9 +189,20 @@
   const cardAvatar = (name, color) => `
     <span class="card-avatar" style="background:${esc(color)};color:${textOn(color)}">${esc(firstChar(name))}</span>`;
 
+  const lineIcon = (name) => {
+    const paths = {
+      eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
+      hidden: '<path d="m3 3 18 18M10.6 5.1 12 5c6.5 0 10 7 10 7a19 19 0 0 1-3 3.8M6.1 6.1A20 20 0 0 0 2 12s3.5 7 10 7a12 12 0 0 0 5.9-1.9M9.9 9.9a3 3 0 0 0 4.2 4.2"/>',
+      copy: '<rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h3"/>',
+      check: '<path d="m5 12 4 4L19 6"/>',
+    };
+    return `<svg class="action-icon" viewBox="0 0 24 24" aria-hidden="true">${paths[name]}</svg>`;
+  };
+
   const revealBtn = (card) => {
     const shown = state.reveal.has(card.id);
-    return `<button class="reveal-btn" data-reveal="${card.id}" title="${shown ? '隐藏' : '显示'}完整卡号">${shown ? '🙈' : '👁'}</button>`;
+    const label = `${shown ? '隐藏' : '显示'}完整卡号`;
+    return `<button class="reveal-btn" data-reveal="${card.id}" title="${label}" aria-label="${label}" aria-pressed="${shown}">${lineIcon(shown ? 'hidden' : 'eye')}</button>`;
   };
 
   // 一键复制完整卡号（去掉空格等分隔符，纯数字，便于支付/绑卡场景直接粘贴）
@@ -223,48 +238,56 @@
     }
   };
 
-  // 第二行卡号：整行点击复制完整号（大热区，适合手机）；右侧 👁 展开/收起完整号
+  // 卡号与详情共用左边缘，复制和查看使用独立的线性图标按钮。
   const cardNumberLine = (card) => {
     const shown = state.reveal.has(card.id);
     const text = shown ? formatGroups(card.number) : maskNumber(card.number);
-    const digits = String(card.number || '').replace(/\D/g, '');
-    if (!digits) {
-      return '';
-    }
-    return `<div class="card-number">
-      <button class="num-copy ${shown ? 'revealed' : ''}" data-copy="${card.id}" title="点击复制完整卡号">
-        <span class="num-text">${esc(text)}</span>
-        <span class="copy-hint">复制</span>
-      </button>
+    if (!String(card.number || '').replace(/\D/g, '')) return '';
+    return `<div class="card-number ${shown ? 'revealed' : ''}">
+      <span class="num-text">${esc(text)}</span>
+      <button class="num-copy" data-copy="${card.id}" title="复制完整卡号" aria-label="复制完整卡号">${lineIcon('copy')}</button>
       ${revealBtn(card)}
     </div>`;
   };
 
-  // 连续行内文本，用完可用宽度后自然换行，包括长年费和权益。
   const creditMeta = (card) => {
-    const fields = [
-      ['有效期', card.expiry, esc],
-      ['额度', card.limit, money],
-      ['账单日', card.billingDay, dayLabel],
-      ['还款日', card.repaymentDay, dayLabel],
-      ['年费', card.annualFee, esc],
-      ['权益', card.benefits, esc],
-    ]
-      .filter(([, value]) => value !== null && value !== undefined && String(value).trim() !== '')
-      .map(([label, value, format]) => `${label} <b>${format(value)}</b>`);
-    return fields.length ? `<div class="meta-line">${fields.join(' · ')}</div>` : '';
+    const present = ([, value]) => value !== null && value !== undefined && String(value).trim() !== '';
+    const core = [
+      ['有效期', card.expiry, esc], ['额度', card.limit, money],
+      ['账单日', card.billingDay, dayLabel], ['还款日', card.repaymentDay, dayLabel],
+    ].filter(present).map(([label, value, format]) => `<span>${label} <b>${format(value)}</b></span>`);
+    const extra = [['年费', card.annualFee], ['权益', card.benefits]]
+      .filter(present).map(([label, value]) => `${label} ${String(value).trim()}`).join(' · ');
+    return `${core.length ? `<div class="meta-core">${core.join('')}</div>` : ''}
+      ${extra ? `<div class="meta-extra" title="${esc(extra)}">${esc(extra)}</div>` : ''}`;
+  };
+
+  const CARD_NETWORKS = [
+    { value: '银联', file: 'unionpay', aliases: ['银联', '中国银联', 'unionpay'] },
+    { value: 'Visa', file: 'visa', aliases: ['visa'] },
+    { value: 'Mastercard', file: 'mastercard', aliases: ['mastercard', '万事达', '万事达卡'] },
+    { value: '美国运通', file: 'amex', aliases: ['美国运通', '运通', 'ae', 'amex', 'americanexpress'] },
+    { value: 'JCB', file: 'jcb', aliases: ['jcb'] },
+  ];
+  const normalizeCardNetwork = (value) => {
+    const key = String(value ?? '').trim().toLowerCase().replace(/[\s_-]+/g, '');
+    return CARD_NETWORKS.find((network) => network.aliases.includes(key))?.value || '';
+  };
+  const networkLogo = (value) => {
+    const network = CARD_NETWORKS.find((item) => item.value === normalizeCardNetwork(value));
+    return network ? `<img class="network-logo" src="/networks/${network.file}.svg" alt="${network.value}" title="${network.value}" width="48" height="24" />` : '';
   };
 
   const bankCardMarkup = (card, index) => `
     <article class="bank-card ${card.type === 'credit' ? 'credit-card' : 'debit-card'}" data-id="${card.id}" data-index="${index}"
              style="--card-color:${esc(card.color)}">
       <div class="bank-card-border" style="border-color:${esc(card.color)}">
-        ${cardAvatar(card.bankName, card.color)}
         <div class="bank-card-body">
           <div class="bank-card-title">
-            <span class="bank-name" title="${esc(card.bankName)}">${esc(card.bankName)}</span>
-            <span class="type-tag ${card.type}">${card.type === 'credit' ? '信用卡' : '借记卡'}</span>
-            ${card.type === 'credit' ? [card.kind, card.network].filter(Boolean).map((tag) => `<span class="detail-tag" title="${esc(tag)}">${esc(tag)}</span>`).join('') : ''}
+            ${cardAvatar(card.bankName, card.color)}
+            <span class="bank-name" title="${esc(card.bankName)} · ${card.type === 'credit' ? '信用卡' : '借记卡'}"><strong>${esc(card.bankName)}</strong> · ${card.type === 'credit' ? '信用卡' : '借记卡'}</span>
+            ${card.type === 'credit' ? [card.kind].filter(Boolean).map((tag) => `<span class="detail-tag" title="${esc(tag)}">${esc(tag)}</span>`).join('') : ''}
+            ${networkLogo(card.network)}
           </div>
           ${cardNumberLine(card)}
           ${card.type === 'credit' ? creditMeta(card) : ''}
@@ -319,16 +342,29 @@
     }
     const total = [...bankLimits.values()].reduce((sum, limit) => sum + limit, 0);
     return `<p class="cards-summary" aria-label="银行卡汇总">
-      <span>借记卡 ${debitCount} 张</span><span>信用卡 ${creditCards.length} 张</span>
-      <span title="同一家银行只计一次，取该银行最高信用额度">总额度 ${total.toLocaleString('zh-CN', { maximumFractionDigits: 2 })} 元</span>
+      <button type="button" class="summary-filter ${state.cardFilter === 'debit' ? 'active' : ''}" data-card-filter="debit" aria-pressed="${state.cardFilter === 'debit'}">借记卡 ${debitCount} 张</button>
+      <button type="button" class="summary-filter credit-summary ${state.cardFilter === 'credit' ? 'active' : ''}" data-card-filter="credit" aria-pressed="${state.cardFilter === 'credit'}" title="同一家银行只计一次，取该银行最高信用额度"><span>信用卡 ${creditCards.length} 张</span><span class="summary-limit">总额度 ${total.toLocaleString('zh-CN', { maximumFractionDigits: 2 })} 元</span></button>
     </p>`;
   };
 
+  const visibleCards = () => state.cards.filter((card) => !state.cardFilter || card.type === state.cardFilter);
+  const cardsPanelMarkup = () => {
+    const cards = visibleCards();
+    const empty = state.cardFilter
+      ? `<div class="empty-state">暂无${state.cardFilter === 'credit' ? '信用卡' : '借记卡'}<br />再次点击上方统计可查看全部</div>`
+      : emptyMarkup('cards');
+    return `<div id="cards-list">${cards.length ? cards.map(bankCardMarkup).join('') : empty}</div>`;
+  };
+
+  function renderCardsPanel() {
+    $('#panel-cards').innerHTML = cardsPanelMarkup();
+    $('#header-summary').innerHTML = cardsSummaryMarkup();
+    initDragSort();
+    equalizeCardHeights();
+  }
+
   const mainMarkup = () => {
     if (state.loading) return `<div class="center-hint">加载中…</div>`;
-    const cardsBody = state.cards.length
-      ? state.cards.map((card, index) => bankCardMarkup(card, index)).join('')
-      : emptyMarkup('cards');
     const sitesBody = state.memberships.length
       ? state.memberships.map((membership, index) => siteCardMarkup(membership, index)).join('')
       : emptyMarkup('sites');
@@ -336,8 +372,7 @@
       ${headerMarkup()}
       <main class="list-area">
         <section class="list-panel ${state.tab === 'cards' ? 'active' : ''}" id="panel-cards">
-          ${cardsSummaryMarkup()}
-          ${cardsBody}
+          ${cardsPanelMarkup()}
         </section>
         <section class="list-panel ${state.tab === 'sites' ? 'active' : ''}" id="panel-sites">
           ${sitesBody}
@@ -368,13 +403,23 @@
         });
         $('#panel-cards').classList.toggle('active', state.tab === 'cards');
         $('#panel-sites').classList.toggle('active', state.tab === 'sites');
+        $('#header-summary').hidden = state.tab !== 'cards';
         if (state.tab === 'cards') equalizeCardHeights();
       }),
     );
 
+    $('#header-summary').addEventListener('click', (event) => {
+      const filter = event.target.closest('[data-card-filter]');
+      if (filter) {
+        state.cardFilter = state.cardFilter === filter.dataset.cardFilter ? null : filter.dataset.cardFilter;
+        renderCardsPanel();
+        return;
+      }
+    });
+
     $('#fab-btn').addEventListener('click', () => openEditor(state.tab));
 
-    // 点击卡片 → 编辑；点击眼睛 → 展开完整卡号；点击 📋 → 一键复制卡号
+    // 委托事件：筛选或更新银行卡列表时保留页头与外层监听。
     $('#panel-cards').addEventListener('click', (event) => {
       // 刚结束一次拖拽时，浏览器会补发 click，这里吞掉避免误开编辑
       if (Date.now() < dragSuppressUntil) return;
@@ -388,16 +433,17 @@
           return;
         }
         copyToClipboard(digits).then((ok) => {
-          const hint = copyBtnClicked.querySelector('.copy-hint');
           if (!ok) {
             toast('复制失败，请长按手动复制');
             return;
           }
           copyBtnClicked.classList.add('copied');
-          if (hint) hint.textContent = '已复制';
+          copyBtnClicked.innerHTML = lineIcon('check');
+          copyBtnClicked.setAttribute('aria-label', '已复制');
           setTimeout(() => {
             copyBtnClicked.classList.remove('copied');
-            if (hint) hint.textContent = '复制';
+            copyBtnClicked.innerHTML = lineIcon('copy');
+            copyBtnClicked.setAttribute('aria-label', '复制完整卡号');
           }, 1200);
           toast('卡号已复制');
         });
@@ -406,11 +452,24 @@
       const revealBtnClicked = event.target.closest('.reveal-btn');
       if (revealBtnClicked) {
         const id = Number(revealBtnClicked.dataset.reveal);
-        if (state.reveal.has(id)) state.reveal.delete(id);
-        else state.reveal.add(id);
-        render();
+        const card = state.cards.find((item) => item.id === id);
+        if (!card) return;
+        const shown = !state.reveal.has(id);
+        if (shown) state.reveal.add(id);
+        else state.reveal.delete(id);
+        // 只更新当前卡号和眼睛按钮，保留银行卡及 Logo 的 DOM。
+        const line = revealBtnClicked.closest('.card-number');
+        line.classList.toggle('revealed', shown);
+        $('.num-text', line).textContent = shown ? formatGroups(card.number) : maskNumber(card.number);
+        const label = `${shown ? '隐藏' : '显示'}完整卡号`;
+        revealBtnClicked.title = label;
+        revealBtnClicked.setAttribute('aria-label', label);
+        revealBtnClicked.setAttribute('aria-pressed', String(shown));
+        revealBtnClicked.innerHTML = lineIcon(shown ? 'hidden' : 'eye');
+        if (card.type === 'debit') equalizeCardHeights();
         return;
       }
+      if (event.target.closest('.card-number')) return;
       const card = event.target.closest('.bank-card');
       if (card) openEditor('cards', Number(card.dataset.id));
     });
@@ -427,7 +486,7 @@
 
   // 桌面鼠标 + 移动触摸通用拖拽（基于 Pointer Events）
   function initDragSort() {
-    const panel = $('#panel-cards');
+    const panel = $('#cards-list');
     if (!panel) return;
 
     let drag = null;
@@ -528,19 +587,28 @@
     ).element;
   }
 
+  function mergeCardOrder(cards, visibleOrder) {
+    const visibleIds = new Set(visibleOrder);
+    let index = 0;
+    return cards.map((card) => visibleIds.has(card.id) ? visibleOrder[index++] : card.id);
+  }
+
   async function persistCardOrder() {
-    const ordered = $$('#panel-cards .bank-card').map((card) => Number(card.dataset.id));
-    if (!ordered.length) return;
+    const visibleOrder = $$('#cards-list .bank-card').map((card) => Number(card.dataset.id));
+    if (!visibleOrder.length) return;
+    // 筛选时只重排当前类型原有的位置，另一类卡片的顺序与位置保持不变。
+    const ordered = mergeCardOrder(state.cards, visibleOrder);
     // 顺序没变（如轻触手柄）则不请求、不重绘
     if (ordered.join(',') === state.cards.map((card) => card.id).join(',')) return;
     try {
       await api('/api/cards/reorder', { method: 'POST', body: JSON.stringify({ ids: ordered }) });
       const byId = new Map(state.cards.map((card) => [card.id, card]));
       state.cards = ordered.map((id) => byId.get(id)).filter(Boolean);
-      render();
+      renderCardsPanel();
     } catch (error) {
       toast(error.message);
       await loadCards();
+      renderCardsPanel();
     }
   }
 
@@ -627,22 +695,21 @@
           <input id="card-number" class="text-input mono" inputmode="numeric" autocomplete="off"
                  placeholder="请输入完整卡号（仅数字）" value="${esc(c.number)}" maxlength="24" />
         </div>
+        <div class="field">
+          <label>卡组织</label>
+          <select id="card-network" class="select-input" aria-label="卡组织">
+            <option value="">未设置</option>
+            ${c.network && !normalizeCardNetwork(c.network) ? `<option value="${esc(c.network)}" selected disabled>原记录：${esc(c.network)}（请选择）</option>` : ''}
+            ${CARD_NETWORKS.map(({ value }) => `<option value="${value}" ${normalizeCardNetwork(c.network) === value ? 'selected' : ''}>${value === '美国运通' ? '美国运通（AE）' : value}</option>`).join('')}
+          </select>
+        </div>
         <div id="credit-fields" ${c.type === 'debit' ? 'style="display:none"' : ''}>
-          <div class="field-row">
-            <div class="field">
-              <label>卡种类</label>
-              <input id="card-kind" class="text-input" list="kind-datalist" placeholder="如 金卡/白金卡" value="${esc(c.kind)}" autocomplete="off" />
-              <datalist id="kind-datalist">
-                ${['金卡', '白金卡', '钛金卡', '钻石卡', '黑金卡', '无限卡', '标准卡', '联名卡'].map((v) => `<option value="${v}"></option>`).join('')}
-              </datalist>
-            </div>
-            <div class="field">
-              <label>卡组织</label>
-              <input id="card-network" class="text-input" list="network-datalist" placeholder="如 银联" value="${esc(c.network)}" autocomplete="off" />
-              <datalist id="network-datalist">
-                ${['银联', 'Visa', 'Mastercard', '美国运通', 'JCB'].map((v) => `<option value="${v}"></option>`).join('')}
-              </datalist>
-            </div>
+          <div class="field">
+            <label>卡种类</label>
+            <input id="card-kind" class="text-input" list="kind-datalist" placeholder="如 金卡/白金卡" value="${esc(c.kind)}" autocomplete="off" />
+            <datalist id="kind-datalist">
+              ${['金卡', '白金卡', '钛金卡', '钻石卡', '黑金卡', '无限卡', '标准卡', '联名卡'].map((v) => `<option value="${v}"></option>`).join('')}
+            </datalist>
           </div>
           <div class="field-row">
             <div class="field">
@@ -842,10 +909,10 @@
       bank_name: $('#brand-name').value.trim(),
       color: $('#color-picker').value,
       card_number: $('#card-number').value,
+      card_network: $('#card-network').value,
     };
     if (type === 'credit') {
       payload.card_kind = $('#card-kind').value.trim();
-      payload.card_network = $('#card-network').value.trim();
       payload.expiry_date = $('#card-expiry').value.trim();
       payload.credit_limit = $('#card-limit').value === '' ? null : Number($('#card-limit').value);
       payload.billing_day = $('#card-billing').value === '' ? null : Number($('#card-billing').value);

@@ -73,9 +73,11 @@ input, select, textarea { font: inherit; color: inherit; }
 
 .app-header {
   position: sticky; top: 0; z-index: 20;
+  padding: calc(env(safe-area-inset-top, 0px) + 14px) 18px 8px;
+  background: var(--bg);
+}
+.header-main {
   display: flex; align-items: center; justify-content: space-between;
-  padding: calc(env(safe-area-inset-top, 0px) + 14px) 18px 10px;
-  background: linear-gradient(180deg, var(--bg) 78%, rgba(238, 241, 251, 0));
 }
 .header-brand { display: flex; align-items: center; gap: 9px; font-size: 20px; }
 .brand-icon { width: 30px; height: 30px; border-radius: 9px; }
@@ -118,11 +120,21 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .list-panel { display: none; }
 .list-panel.active { display: block; }
 .cards-summary {
-  display: flex; flex-wrap: wrap; gap: 4px 14px;
-  margin: 2px 2px 12px;
+  display: flex; flex-wrap: wrap; align-items: stretch; gap: 4px 8px;
+  margin: 4px 0 0;
   color: var(--text-2); font-size: 12px; line-height: 1.6;
 }
 .cards-summary span { white-space: nowrap; }
+.summary-filter {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 4px 6px; min-height: 32px; border-radius: 5px;
+  font: inherit; color: inherit;
+}
+.summary-filter.active { background: var(--text-2); color: var(--surface); }
+.summary-filter:active { opacity: 0.75; }
+.credit-summary { flex-wrap: wrap; gap: 2px 8px; text-align: left; }
+.summary-limit { font: inherit; color: inherit; }
+.network-logo { flex: 0 0 48px; width: 48px; height: 24px; object-fit: contain; margin-left: auto; }
 .center-hint {
   text-align: center; color: var(--text-3);
   padding: 60px 0; font-size: 15px;
@@ -138,7 +150,7 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 /* ---------- 银行卡卡片 ---------- */
 
 .bank-card {
-  margin-bottom: 14px;
+  margin-bottom: 10px;
   user-select: none;
 }
 .bank-card.dragging { opacity: 0.55; }
@@ -147,10 +159,8 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   box-shadow: 0 10px 24px rgba(30, 41, 80, 0.16);
 }
 .bank-card-border {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
+  position: relative;
+  padding: 10px 12px;
   background: var(--surface);
   border-radius: var(--radius);
   border: 1px solid var(--card-color, #3b6bfa);
@@ -158,9 +168,9 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   transition: transform 0.12s, box-shadow 0.12s;
   cursor: pointer;
 }
-.bank-card:hover .bank-card-border { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(30, 41, 80, 0.1); }
+.bank-card:hover .bank-card-border { box-shadow: 0 6px 18px rgba(30, 41, 80, 0.1); }
 .bank-card:active .bank-card-border { transform: scale(0.995); }
-.bank-card .card-avatar { flex: 0 0 48px; width: 48px; height: 48px; font-size: 21px; }
+.bank-card .card-avatar { flex: 0 0 28px; width: 28px; height: 28px; font-size: 14px; box-shadow: none; }
 
 .card-avatar {
   flex: 0 0 52px;
@@ -170,7 +180,7 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   font-size: 24px; font-weight: 700;
   box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.55);
 }
-/* 银行卡内容区：第1行 银行名 · 第2行 卡号 · 第3行 辅助信息 */
+/* 小头像仅占标题行；卡号和两层详情从卡片内侧左边缘对齐。 */
 .bank-card-body {
   flex: 1;
   min-width: 0;
@@ -182,89 +192,53 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   display: flex;
   align-items: center;
   gap: 5px;
-  height: 24px;
+  min-height: 28px;
+  padding-right: 20px;
   min-width: 0;
 }
 .bank-name, .site-name {
   font-size: 16px; font-weight: 700;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.bank-name { flex: 0 1 auto; min-width: 2em; }
+.bank-name { flex: 0 1 auto; min-width: 0; font-weight: 400; }
+.bank-name strong { font-weight: 700; }
 .detail-tag { min-width: 0; max-width: 25%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: var(--primary-weak); color: var(--primary); }
-.type-tag, .detail-tag {
+.detail-tag {
   font-size: 11px; font-weight: 600;
   padding: 2px 5px;
   border-radius: 999px;
 }
-.type-tag { flex: 0 0 auto; }
-.type-tag.credit { background: #fdecec; color: #d11f2e; }
-.type-tag.debit { background: var(--primary-weak); color: var(--primary); }
 
-.card-number {
-  display: flex;
-  align-items: center;
-  margin: 1px 0 3px;
-}
-.num-copy {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 42px;
-  padding: 0;
-  background: transparent;
-  border: 0;
-  border-radius: 10px;
+.card-number { display: flex; align-items: center; gap: 2px; min-height: 40px; }
+.card-number .num-text {
+  flex: 1; min-width: 0; white-space: nowrap; overflow-x: auto; scrollbar-width: none;
   font-family: 'SF Mono', ui-monospace, Menlo, monospace;
-  font-size: clamp(18px, 4.8vw, 25px); font-weight: 600; letter-spacing: 0;
-  color: var(--text);
-  text-align: left;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: background-color 0.12s;
+  font-size: clamp(18px, 4.8vw, 25px); font-weight: 600; line-height: 1.35;
 }
-.num-copy:active { background: rgba(59, 107, 250, 0.08); }
-.num-copy .num-text { min-width: 0; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
-.num-copy .num-text::-webkit-scrollbar { display: none; }
-.num-copy.copied .num-text,
-.num-copy.copied .copy-hint { color: #00a550; }
-.num-text.empty {
-  color: var(--text-3);
-  font-weight: 500;
-  font-size: 13px;
-  font-family: -apple-system, 'PingFang SC', 'Noto Sans SC', sans-serif;
+.card-number .num-text::-webkit-scrollbar { display: none; }
+.card-number.revealed .num-text { white-space: normal; overflow-wrap: anywhere; }
+.num-copy, .reveal-btn {
+  flex: 0 0 40px; width: 40px; height: 40px; padding: 10px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-2); border-radius: 10px;
+  transition: background-color 0.12s, color 0.12s;
 }
-.copy-hint {
-  flex: 0 0 auto;
-  font-family: -apple-system, 'PingFang SC', 'Noto Sans SC', sans-serif;
-  font-size: 11px; font-weight: 600; letter-spacing: 0;
-  color: var(--primary);
-  opacity: 0.9;
+.action-icon { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.num-copy:active, .reveal-btn:active { background: var(--primary-weak); color: var(--primary); }
+.num-copy.copied { color: var(--ok); }
+.meta-core { display: flex; flex-wrap: wrap; gap: 2px 0; font-size: 12px; line-height: 1.6; color: var(--text-2); }
+.meta-core span { max-width: 100%; overflow-wrap: anywhere; }
+.meta-core span + span::before { content: '·'; padding: 0 6px; color: var(--text-3); }
+.meta-core b { font-weight: 500; color: var(--text); }
+.meta-extra {
+  font-size: 11px; line-height: 1.6; color: var(--text-2); overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
 }
-.reveal-btn {
-  flex: 0 0 auto;
-  width: 42px;
-  height: 42px;
-  margin-left: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  border-radius: 12px;
-  -webkit-tap-highlight-color: transparent;
-}
-.reveal-btn:active { background: rgba(59, 107, 250, 0.1); }
-
-/* 详情使用普通行内排版，不按字段分组或预先换行。 */
-.meta-line { font-size: 12px; color: var(--text-2); line-height: 1.7; overflow-wrap: anywhere; }
-.meta-line b { color: var(--text); font-weight: 500; }
-.credit-card .bank-card-border { padding-top: 10px; padding-bottom: 10px; }
-.debit-card .bank-card-border { min-height: 104px; }
+.debit-card .bank-card-border { min-height: 90px; }
 
 .drag-handle {
-  flex: 0 0 auto;
-  width: 18px; height: 52px;
+  position: absolute; right: 3px; top: 5px;
+  width: 24px; height: 38px;
   display: flex; align-items: center; justify-content: center;
   color: #c3c9dc;
   font-size: 20px;
@@ -292,7 +266,7 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   cursor: pointer;
   transition: transform 0.12s, box-shadow 0.12s;
 }
-.site-card:hover .site-card-border { transform: translateY(-1px); }
+.site-card:hover .site-card-border { box-shadow: 0 6px 18px rgba(30, 41, 80, 0.1); }
 .site-card:active .site-card-border { transform: scale(0.995); }
 .site-card .card-avatar { flex-basis: 46px; width: 46px; height: 46px; font-size: 20px; }
 .site-card-body { flex: 1; min-width: 0; }
@@ -523,18 +497,14 @@ textarea.text-input { resize: vertical; min-height: 68px; }
 }
 
 @media (max-width: 480px) {
+  .app-header { padding-left: 10px; padding-right: 10px; }
+  .cards-summary { gap: 4px; }
   .list-area { padding: 0 10px; }
-  .bank-card-border { padding: 12px 10px; gap: 8px; position: relative; }
-  .bank-card .card-avatar { flex-basis: 40px; width: 40px; height: 40px; font-size: 20px; }
-  .bank-card-body { padding-right: 12px; }
-  .drag-handle { position: absolute; right: 0; top: 50%; transform: translateY(-50%); width: 22px; }
+  .bank-card-border { padding: 10px; }
   .bank-name { font-size: 14px; }
-  .type-tag, .detail-tag { font-size: 10px; padding: 2px 4px; }
-  .num-copy { gap: 5px; }
-  .reveal-btn { width: 32px; }
+  .detail-tag { font-size: 10px; padding: 2px 4px; }
 }
 
-.num-copy.revealed .num-text { white-space: normal; overflow-wrap: anywhere; font-size: 18px; line-height: 1.35; }
 
 .update-notice {
   position: fixed; z-index: 35;
