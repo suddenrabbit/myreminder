@@ -61,6 +61,9 @@
     loading: false,
   };
 
+  // 拖拽结束后的时间戳：在其后 350ms 内吞掉系统 click，避免误触"点击卡片编辑"
+  let dragSuppressUntil = 0;
+
   /* ------------------------------ 工具 ------------------------------ */
 
   const todayStr = () => {
@@ -299,6 +302,8 @@
 
     // 点击卡片 → 编辑；点击眼睛 → 展开完整卡号
     $('#panel-cards').addEventListener('click', (event) => {
+      // 刚结束一次拖拽时，浏览器会补发 click，这里吞掉避免误开编辑
+      if (Date.now() < dragSuppressUntil) return;
       const revealBtnClicked = event.target.closest('.reveal-btn');
       if (revealBtnClicked) {
         const id = Number(revealBtnClicked.dataset.reveal);
@@ -325,37 +330,54 @@
   function initDragSort() {
     const panel = $('#panel-cards');
     if (!panel) return;
-    const handles = () => $$('.drag-handle', panel);
 
     let drag = null;
 
-    handles().forEach((handle) => {
-      handle.addEventListener('pointerdown', (event) => {
-        const card = handle.closest('.bank-card');
-        if (!card) return;
-        // 仅支持鼠标 / 触摸笔 / 触摸，避免与滚动冲突；桌面端同样生效
-        event.preventDefault();
-        try { handle.setPointerCapture(event.pointerId); } catch (_) {}
-        drag = {
-          card,
-          panel,
-          handle,
-          pointerId: event.pointerId,
-          startY: event.clientY,
-          lastY: event.clientY,
-          moved: false,
-        };
-        handle.addEventListener('pointermove', onMove);
-        handle.addEventListener('pointerup', onEnd);
-        handle.addEventListener('pointercancel', onEnd);
-      });
+    // 从卡片任意位置按下都能进入拖拽预备；move/up/cancel 挂到 window，
+    // 指针移到任何位置都不丢事件（不依赖 setPointerCapture 是否生效）
+    panel.addEventListener('pointerdown', (event) => {
+      // 已经在一张卡的拖拽中则忽略第二根手指/第二次按下
+      if (drag) return;
+      const card = event.target.closest('.bank-card');
+      if (!card) return;
+      // 眼睛按钮用于展开卡号，不作为拖动起点
+      if (event.target.closest('.reveal-btn')) return;
+
+      const handle = event.target.closest('.drag-handle');
+      // 仅手柄起点阻止默认行为（防误触滚动/长按菜单）。
+      // 卡片主体保留原生默认 → 系统 click 正常生成，「点击卡片=编辑」不受影响
+      // （文本选择已由 CSS user-select:none 处理）
+      if (handle) event.preventDefault();
+      drag = {
+        card,
+        panel,
+        handle,
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        lastY: event.clientY,
+        // 从手柄按下视为意图拖拽（立即跟手）；从卡片主体按下需位移 > 8px
+        moved: !!handle,
+      };
+      if (drag.moved) drag.card.classList.add('dragging');
+      try { event.target.setPointerCapture(event.pointerId); } catch (_) {}
+      // 监听挂 document 捕获阶段：无论指针移到哪个元素、capture 是否生效，
+      // move/up 都能第一时间收到（pointer 事件天然走捕获与冒泡，捕获层最稳）
+      document.addEventListener('pointermove', onMove, true);
+      document.addEventListener('pointerup', onEnd, true);
+      document.addEventListener('pointercancel', onEnd, true);
     });
 
     function onMove(event) {
       if (!drag) return;
-      const dy = event.clientY - drag.lastY;
-      if (!drag.moved && Math.abs(event.clientY - drag.startY) < 8) return;
+      // 拖拽期间视图被重绘则放弃本次拖拽，避免把游离卡片插回新列表
+      if (!drag.card.isConnected) {
+        onEnd();
+        return;
+      }
       if (!drag.moved) {
+        // 从卡片主体开始：位移超过阈值才认定为拖拽（否则视为点击编辑）
+        if (Math.abs(event.clientY - drag.startY) < 8) return;
         drag.moved = true;
         drag.card.classList.add('dragging');
       }
@@ -366,13 +388,14 @@
       drag.lastY = event.clientY;
     }
 
-    function onEnd(event) {
+    function onEnd() {
       if (!drag) return;
-      drag.handle.removeEventListener('pointermove', onMove);
-      drag.handle.removeEventListener('pointerup', onEnd);
-      drag.handle.removeEventListener('pointercancel', onEnd);
+      document.removeEventListener('pointermove', onMove, true);
+      document.removeEventListener('pointerup', onEnd, true);
+      document.removeEventListener('pointercancel', onEnd, true);
       if (drag.moved) {
         drag.card.classList.remove('dragging');
+        dragSuppressUntil = Date.now() + 350; // 吞掉随后的系统 click，避免误开编辑
         persistCardOrder();
       }
       drag = null;
@@ -395,6 +418,8 @@
   async function persistCardOrder() {
     const ordered = $$('#panel-cards .bank-card').map((card) => Number(card.dataset.id));
     if (!ordered.length) return;
+    // 顺序没变（如轻触手柄）则不请求、不重绘
+    if (ordered.join(',') === state.cards.map((card) => card.id).join(',')) return;
     try {
       await api('/api/cards/reorder', { method: 'POST', body: JSON.stringify({ ids: ordered }) });
       const byId = new Map(state.cards.map((card) => [card.id, card]));

@@ -150,7 +150,11 @@ input, select, textarea { font: inherit; color: inherit; }
   margin-bottom: 14px;
   user-select: none;
 }
-.bank-card.dragging { opacity: 0.35; }
+.bank-card.dragging { opacity: 0.55; }
+.bank-card.dragging .bank-card-border {
+  border-style: dashed;
+  box-shadow: 0 10px 24px rgba(30, 41, 80, 0.16);
+}
 .bank-card-border {
   display: flex;
   align-items: center;

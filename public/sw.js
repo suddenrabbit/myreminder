@@ -1,5 +1,5 @@
 /* myreminder Service Worker — 应用壳缓存 */
-const CACHE = 'myreminder-v1';
+const CACHE = 'myreminder-v2';
 const APP_SHELL = ['/', '/index.html', '/style.css', '/app.js', '/brands.js', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png'];
 
 self.addEventListener('install', (event) => {
