@@ -85,12 +85,9 @@
   const maskNumber = (number) => {
     const digits = String(number || '').replace(/\D/g, '');
     if (!digits) return '未填写卡号';
-    // 保留后 4 位，其余以圆点代替
-    const hidden = digits.length - 4;
-    if (hidden <= 0) return digits;
-    const hiddenGroups = Math.max(1, Math.ceil(hidden / 4));
-    const bullets = Array.from({ length: hiddenGroups }, () => '••••').join(' ');
-    return `${bullets} ${digits.slice(-4)}`;
+    // 紧凑掩码：只露尾号 4 位，节省横向空间（完整号可点 👁 查看）
+    if (digits.length <= 4) return digits;
+    return `•••• ${digits.slice(-4)}`;
   };
 
   const formatGroups = (number) => String(number || '').replace(/\D/g, '').replace(/(\d{4})(?=\d)/g, '$1 ');
@@ -221,32 +218,42 @@
     }
   };
 
-  const copyBtn = (card) => `
-    <button class="copy-btn" data-copy="${card.id}" title="复制完整卡号">📋</button>`;
-
+  // 第二行卡号：整行点击复制完整号（大热区，适合手机）；右侧 👁 展开/收起完整号
   const cardNumberLine = (card) => {
     const shown = state.reveal.has(card.id);
     const text = shown ? formatGroups(card.number) : maskNumber(card.number);
     const digits = String(card.number || '').replace(/\D/g, '');
+    if (!digits) {
+      return '<div class="card-number"><span class="num-text empty">未填写卡号</span></div>';
+    }
     return `<div class="card-number">
-      <span class="num-text">${esc(text)}</span>${digits ? copyBtn(card) : ''}${revealBtn(card)}
+      <button class="num-copy" data-copy="${card.id}" title="点击复制完整卡号">
+        <span class="num-text">${esc(text)}</span>
+        <span class="copy-hint">复制</span>
+      </button>
+      ${revealBtn(card)}
     </div>`;
   };
 
+  // 第三行辅助信息（紧凑聚合，减少占高）：
+  // 行1 卡种类·组织 与 有效期·额度；行2 账单日·还款日·年费；行3 权益（单行截断）
   const creditMeta = (card) => {
-    const chips = [];
-    if (card.kind) chips.push(esc(card.kind));
-    if (card.network) chips.push(esc(card.network));
-    const metaLine = chips.length ? `<span class="chips">${chips.map((c) => `<i>${c}</i>`).join('')}</span>` : '';
-    const expiry = card.expiry ? `<span class="meta-item">有效期 <b>${esc(card.expiry)}</b></span>` : '';
-    const limit = card.limit != null && card.limit !== '' ? `<span class="meta-item">额度 <b>${money(card.limit)}</b></span>` : '';
-    let extra = '';
-    if (card.billingDay || card.repaymentDay) {
-      extra += `<div class="meta-row">账单日 <b>${dayLabel(card.billingDay)}</b> · 还款日 <b>${dayLabel(card.repaymentDay)}</b></div>`;
-    }
-    if (card.annualFee) extra += `<div class="meta-row">年费 <b>${esc(card.annualFee)}</b></div>`;
-    if (card.benefits) extra += `<div class="meta-row benefits">权益 ${esc(card.benefits)}</div>`;
-    return `${metaLine}<div class="meta-row">${expiry}${limit}</div>${extra}`;
+    const chips = [card.kind, card.network].filter(Boolean).map((c) => `<i>${esc(c)}</i>`).join('');
+    const chipHtml = chips ? `<span class="chips">${chips}</span>` : '';
+    const l1 = [];
+    if (card.expiry) l1.push(`有效期 <b>${esc(card.expiry)}</b>`);
+    if (card.limit !== null && card.limit !== undefined && card.limit !== '') l1.push(`额度 <b>${money(card.limit)}</b>`);
+    const l2 = [];
+    if (card.billingDay) l2.push(`账单日 <b>${dayLabel(card.billingDay)}</b>`);
+    if (card.repaymentDay) l2.push(`还款日 <b>${dayLabel(card.repaymentDay)}</b>`);
+    if (card.annualFee) l2.push(`年费 <b>${esc(card.annualFee)}</b>`);
+    const html = [];
+    const a = [chipHtml, ...l1.map((x) => `<span>${x}</span>`)].filter(Boolean).join(' · ');
+    if (a) html.push(`<div class="meta-line">${a}</div>`);
+    const b = l2.join(' · ');
+    if (b) html.push(`<div class="meta-line">${b}</div>`);
+    if (card.benefits) html.push(`<div class="meta-line benefit">权益 <b>${esc(card.benefits)}</b></div>`);
+    return html.join('');
   };
 
   const bankCardMarkup = (card, index) => `
@@ -341,7 +348,7 @@
     $('#panel-cards').addEventListener('click', (event) => {
       // 刚结束一次拖拽时，浏览器会补发 click，这里吞掉避免误开编辑
       if (Date.now() < dragSuppressUntil) return;
-      const copyBtnClicked = event.target.closest('.copy-btn');
+      const copyBtnClicked = event.target.closest('.num-copy');
       if (copyBtnClicked) {
         const id = Number(copyBtnClicked.dataset.copy);
         const card = state.cards.find((c) => c.id === id);
@@ -351,15 +358,16 @@
           return;
         }
         copyToClipboard(digits).then((ok) => {
+          const hint = copyBtnClicked.querySelector('.copy-hint');
           if (!ok) {
             toast('复制失败，请长按手动复制');
             return;
           }
-          copyBtnClicked.textContent = '✓';
           copyBtnClicked.classList.add('copied');
+          if (hint) hint.textContent = '已复制';
           setTimeout(() => {
-            copyBtnClicked.textContent = '📋';
             copyBtnClicked.classList.remove('copied');
+            if (hint) hint.textContent = '复制';
           }, 1200);
           toast('卡号已复制');
         });
@@ -402,7 +410,7 @@
       const card = event.target.closest('.bank-card');
       if (!card) return;
       // 眼睛/复制按钮不作为拖动起点
-      if (event.target.closest('.reveal-btn, .copy-btn')) return;
+      if (event.target.closest('.reveal-btn, .num-copy')) return;
 
       const handle = event.target.closest('.drag-handle');
       // 仅手柄起点阻止默认行为（防误触滚动/长按菜单）。
