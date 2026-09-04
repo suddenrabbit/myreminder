@@ -1,5 +1,5 @@
 /* ============================================================
-   myreminder PWA 样式 — 浅色主题
+   RabbitReminder PWA 样式 — 浅色主题
    ============================================================ */
 
 :root {
@@ -62,12 +62,11 @@ input, select, textarea { font: inherit; color: inherit; }
   color: #fff;
   font-weight: 800;
   font-size: 26px;
-  display: flex; align-items: center; justify-content: center;
+  display: block;
   box-shadow: 0 10px 24px rgba(59, 107, 250, 0.35);
 }
 .login-card h1 { font-size: 24px; letter-spacing: 0.3px; }
 .login-sub { color: var(--text-2); margin: 8px 0 24px; font-size: 14px; }
-.login-hint { color: var(--text-3); font-size: 12px; margin-top: 18px; }
 .form-error { color: var(--danger); font-size: 13px; margin-bottom: 12px; }
 
 /* ------------------------------- 布局 ------------------------------- */
@@ -79,11 +78,7 @@ input, select, textarea { font: inherit; color: inherit; }
   background: linear-gradient(180deg, var(--bg) 78%, rgba(238, 241, 251, 0));
 }
 .header-brand { display: flex; align-items: center; gap: 9px; font-size: 20px; }
-.brand-dot {
-  width: 12px; height: 12px; border-radius: 50%;
-  background: linear-gradient(135deg, #5b7cfa, #3b6bfa);
-  box-shadow: 0 0 0 4px rgba(59, 107, 250, 0.15);
-}
+.brand-icon { width: 30px; height: 30px; border-radius: 9px; }
 .header-count { display: flex; align-items: center; }
 .icon-btn {
   width: 38px; height: 38px; border-radius: 12px;

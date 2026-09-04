@@ -1,5 +1,5 @@
 /* ============================================================
- * myreminder PWA 前端
+ * RabbitReminder PWA 前端
  * 两个 Tab：
  *   1) 银行卡：借记卡(银行/卡号) / 信用卡(+种类/有效期/额度/组织/账单日/还款日/权益/年费)
  *      卡片拖拽排序、点击编辑、左侧银行首字大圆、可调边框色
@@ -118,8 +118,8 @@
     app.innerHTML = `
       <div class="login-screen">
         <div class="login-card">
-          <div class="login-logo">MR</div>
-          <h1>MyReminder</h1>
+          <img class="login-logo" src="/rabbit-wallet-192.png" alt="" width="72" height="72" />
+          <h1>RabbitReminder</h1>
           <p class="login-sub">银行卡 · 网站会员到期提醒</p>
           <form id="login-form">
             <div class="field">
@@ -131,7 +131,6 @@
               ${session.busy ? '验证中…' : '进入'}
             </button>
           </form>
-          <p class="login-hint">口令由部署时配置，数据经 Cloudflare Worker 存储</p>
         </div>
       </div>`;
 
@@ -161,8 +160,8 @@
   const headerMarkup = () => `
     <header class="app-header">
       <div class="header-brand">
-        <span class="brand-dot"></span>
-        <strong>MyReminder</strong>
+        <img class="brand-icon" src="/rabbit-wallet-192.png" alt="" width="30" height="30" />
+        <strong>RabbitReminder</strong>
       </div>
       <div class="header-count">
         <button class="icon-btn" id="logout-btn" title="退出登录" aria-label="退出登录">⏻</button>
@@ -908,7 +907,7 @@
 
   // 注册 Service Worker（PWA 离线缓存）
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
+    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(() => {});
   }
 
   // 首次进入：有 token 直接拉数据；无 token 走登录页
