@@ -1,10 +1,12 @@
 /* RabbitReminder Service Worker — 发布前同步更新 VERSION 与 index.html 资源版本。 */
-const VERSION = 'rabbit-v14';
+const VERSION = 'rabbit-v16';
 const CACHE = `rabbitreminder-${VERSION}`;
+const BANK_LOGOS = ['icbc', 'abc', 'boc', 'ccb', 'bocom', 'psbc', 'cmb', 'citic', 'cib', 'spdb', 'pingan', 'cmbc']
+  .map((key) => `/banks/${key}.svg`);
 const APP_SHELL = ['/', '/index.html', `/style.css?v=${VERSION}`, `/app.js?v=${VERSION}`,
   `/brands.js?v=${VERSION}`, `/manifest.webmanifest?v=${VERSION}`,
   '/networks/unionpay.svg', '/networks/visa.svg', '/networks/mastercard.svg', '/networks/amex.svg', '/networks/jcb.svg',
-  '/rabbit-wallet-192.png', '/rabbit-wallet-512.png', '/rabbit-wallet-apple.png'];
+  '/rabbit-wallet-192.png', '/rabbit-wallet-512.png', '/rabbit-wallet-apple.png', ...BANK_LOGOS];
 
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'GET_VERSION') {

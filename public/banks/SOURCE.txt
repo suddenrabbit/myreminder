@@ -1,0 +1,19 @@
+RabbitReminder bank logo assets
+
+Source: https://github.com/icongo/bank-logos
+Revision: ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1
+License: MIT (see LICENSE.txt in this directory)
+
+Local file  Source file
+icbc.svg    logos/icbc.svg
+abc.svg     logos/abchina.svg
+boc.svg     logos/boc.svg
+ccb.svg     logos/ccb.svg
+bocom.svg   logos/bankcomm.svg
+psbc.svg    logos/psbc.svg
+cmb.svg     logos/cmbchina.svg
+citic.svg   logos/citicbank.svg
+cib.svg     logos/cib.svg
+spdb.svg    logos/spdb.svg
+pingan.svg  logos/pingan.svg
+cmbc.svg    logos/cmbc.svg

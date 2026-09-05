@@ -189,6 +189,17 @@
   const cardAvatar = (name, color) => `
     <span class="card-avatar" style="background:${esc(color)};color:${textOn(color)}">${esc(firstChar(name))}</span>`;
 
+  const BANK_LOGO_KEYS = new Set(['icbc', 'abc', 'boc', 'ccb', 'bocom', 'psbc', 'cmb', 'citic', 'cib', 'spdb', 'pingan', 'cmbc']);
+  const bankAvatar = (card) => {
+    const matched = BANK_LOGO_KEYS.has(card.bankKey)
+      ? card.bankKey
+      : BANK_PRESETS.find((bank) => bank.name === String(card.bankName || '').trim())?.key;
+    if (!BANK_LOGO_KEYS.has(matched)) return cardAvatar(card.bankName, card.color);
+    return `<span class="card-avatar bank-logo-avatar" style="border-color:${esc(card.color)}">
+      <img src="/banks/${matched}.svg" alt="" width="28" height="28" loading="eager" />
+    </span>`;
+  };
+
   const lineIcon = (name) => {
     const paths = {
       eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
@@ -284,7 +295,7 @@
       <div class="bank-card-border" style="border-color:${esc(card.color)}">
         <div class="bank-card-body">
           <div class="bank-card-title">
-            ${cardAvatar(card.bankName, card.color)}
+            ${bankAvatar(card)}
             <span class="bank-name" title="${esc(card.bankName)} · ${card.type === 'credit' ? '信用卡' : '借记卡'}"><strong>${esc(card.bankName)}</strong> · ${card.type === 'credit' ? '信用卡' : '借记卡'}</span>
             ${card.type === 'credit' ? [card.kind].filter(Boolean).map((tag) => `<span class="detail-tag" title="${esc(tag)}">${esc(tag)}</span>`).join('') : ''}
             ${networkLogo(card.network)}
@@ -292,7 +303,7 @@
           ${cardNumberLine(card)}
           ${card.type === 'credit' ? creditMeta(card) : ''}
         </div>
-        <span class="drag-handle" title="拖拽排序">⠿</span>
+        <button type="button" class="drag-handle" title="按住拖拽排序" aria-label="按住拖拽排序">⠿</button>
       </div>
     </article>`;
 
@@ -484,98 +495,95 @@
 
   /* ---------------------------- 拖拽排序（卡片） ---------------------------- */
 
-  // 桌面鼠标 + 移动触摸通用拖拽（基于 Pointer Events）
+  // 仅从手柄开始拖拽。卡片跟随指针，原位置由占位元素保留。
   function initDragSort() {
     const panel = $('#cards-list');
     if (!panel) return;
-
     let drag = null;
 
-    // 从卡片任意位置按下都能进入拖拽预备；move/up/cancel 挂到 window，
-    // 指针移到任何位置都不丢事件（不依赖 setPointerCapture 是否生效）
     panel.addEventListener('pointerdown', (event) => {
-      // 已经在一张卡的拖拽中则忽略第二根手指/第二次按下
       if (drag) return;
-      const card = event.target.closest('.bank-card');
-      if (!card) return;
-      // 眼睛/复制按钮不作为拖动起点
-      if (event.target.closest('.reveal-btn, .num-copy')) return;
-
       const handle = event.target.closest('.drag-handle');
-      // 仅手柄起点阻止默认行为（防误触滚动/长按菜单）。
-      // 卡片主体保留原生默认 → 系统 click 正常生成，「点击卡片=编辑」不受影响
-      // （文本选择已由 CSS user-select:none 处理）
-      if (handle) event.preventDefault();
-      drag = {
-        card,
-        panel,
-        handle,
-        pointerId: event.pointerId,
-        type: event.pointerType || 'mouse',
-        startX: event.clientX,
-        startY: event.clientY,
-        lastY: event.clientY,
-        // 从手柄按下视为意图拖拽（立即跟手）；从卡片主体按下需位移 > 8px
-        moved: !!handle,
-      };
-      if (drag.moved) drag.card.classList.add('dragging');
-      try { event.target.setPointerCapture(event.pointerId); } catch (_) {}
-      // 兜底：拖拽中页面失焦（切后台 / 鼠标在窗口外松开）也结束拖拽，防止卡片残留半透明
+      const card = handle?.closest('.bank-card');
+      if (!card) return;
+      event.preventDefault();
+
+      const rect = card.getBoundingClientRect();
+      const originalStyle = card.getAttribute('style');
+      const placeholder = document.createElement('div');
+      placeholder.className = 'bank-card drag-placeholder';
+      placeholder.style.height = `${rect.height}px`;
+      card.before(placeholder);
+      const pointerOffset = event.clientY - rect.top;
+      document.body.appendChild(card);
+      Object.assign(card.style, {
+        position: 'fixed', left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`,
+        margin: '0', zIndex: '50', transform: 'translate3d(0, 0, 0)',
+      });
+      card.classList.add('dragging');
+      document.body.classList.add('sorting-cards');
+      drag = { card, panel, placeholder, originalStyle, pointerId: event.pointerId, type: event.pointerType || 'mouse', pointerOffset };
+
+      try { handle.setPointerCapture(event.pointerId); } catch (_) {}
       window.addEventListener('blur', onEnd);
-      // 监听挂 document 捕获阶段：无论指针移到哪个元素、capture 是否生效，
-      // move/up 都能第一时间收到（pointer 事件天然走捕获与冒泡，捕获层最稳）
       document.addEventListener('pointermove', onMove, true);
       document.addEventListener('pointerup', onEnd, true);
       document.addEventListener('pointercancel', onEnd, true);
     });
 
-    function onMove(event) {
-      if (!drag) return;
-      // 鼠标已松开但 pointerup 丢失（如窗口外松手）：主动结束，避免卡片残留半透明
-      if (drag.type === 'mouse' && drag.moved && event.buttons === 0) {
-        onEnd();
-        return;
+    function animateList(before) {
+      if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      for (const item of drag.panel.querySelectorAll('.bank-card:not(.drag-placeholder)')) {
+        const oldTop = before.get(item);
+        if (oldTop === undefined) continue;
+        const delta = oldTop - item.getBoundingClientRect().top;
+        if (Math.abs(delta) > 0.5) {
+          item.animate([{ transform: `translateY(${delta}px)` }, { transform: 'translateY(0)' }], {
+            duration: 150, easing: 'cubic-bezier(.2,.8,.2,1)',
+          });
+        }
       }
-      // 拖拽期间视图被重绘则放弃本次拖拽，避免把游离卡片插回新列表
-      if (!drag.card.isConnected) {
-        onEnd();
-        return;
-      }
-      if (!drag.moved) {
-        // 从卡片主体开始：位移超过阈值才认定为拖拽（否则视为点击编辑）
-        if (Math.abs(event.clientY - drag.startY) < 8) return;
-        drag.moved = true;
-        drag.card.classList.add('dragging');
-      }
-      // 在 DOM 上搬动卡片，让其他卡片顺位
-      const after = getDragAfterElement(drag.panel, event.clientY);
-      if (after == null) drag.panel.appendChild(drag.card);
-      else drag.panel.insertBefore(drag.card, after);
-      drag.lastY = event.clientY;
     }
 
-    function onEnd() {
-      if (!drag) return;
+    function onMove(event) {
+      if (!drag || event.pointerId !== drag.pointerId) return;
+      if (drag.type === 'mouse' && event.buttons === 0) return onEnd(event);
+      event.preventDefault();
+      drag.card.style.top = `${event.clientY - drag.pointerOffset}px`;
+
+      const before = new Map([...drag.panel.querySelectorAll('.bank-card:not(.drag-placeholder)')]
+        .map((item) => [item, item.getBoundingClientRect().top]));
+      const after = getDragAfterElement(drag.panel, event.clientY);
+      if (after == null) drag.panel.appendChild(drag.placeholder);
+      else drag.panel.insertBefore(drag.placeholder, after);
+      animateList(before);
+
+      const edge = 88;
+      if (event.clientY < edge + $('.app-header').offsetHeight) window.scrollBy({ top: -10, behavior: 'auto' });
+      else if (event.clientY > innerHeight - edge) window.scrollBy({ top: 10, behavior: 'auto' });
+    }
+
+    function onEnd(event) {
+      if (!drag || (event?.pointerId !== undefined && event.pointerId !== drag.pointerId)) return;
       document.removeEventListener('pointermove', onMove, true);
       document.removeEventListener('pointerup', onEnd, true);
       document.removeEventListener('pointercancel', onEnd, true);
       window.removeEventListener('blur', onEnd);
-      if (drag.moved) {
-        // 先移除被拖卡片，再兜底清理面板内任何残留的 .dragging（防引用错位/异常路径漏清）
-        const panel = drag.panel;
-        drag.card.classList.remove('dragging');
-        if (panel && panel.querySelectorAll) {
-          panel.querySelectorAll('.bank-card.dragging').forEach((el) => el.classList.remove('dragging'));
-        }
-        dragSuppressUntil = Date.now() + 350; // 吞掉随后的系统 click，避免误开编辑
-        persistCardOrder();
-      }
+
+      drag.placeholder.before(drag.card);
+      drag.placeholder.remove();
+      drag.card.classList.remove('dragging');
+      if (drag.originalStyle === null) drag.card.removeAttribute('style');
+      else drag.card.setAttribute('style', drag.originalStyle);
+      document.body.classList.remove('sorting-cards');
+      dragSuppressUntil = Date.now() + 350;
       drag = null;
+      persistCardOrder();
     }
   }
 
   function getDragAfterElement(container, y) {
-    const els = [...container.querySelectorAll('.bank-card:not(.dragging)')];
+    const els = [...container.querySelectorAll('.bank-card:not(.dragging):not(.drag-placeholder)')];
     return els.reduce(
       (closest, child) => {
         const box = child.getBoundingClientRect();

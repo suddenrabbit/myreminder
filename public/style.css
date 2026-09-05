@@ -153,11 +153,17 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   margin-bottom: 10px;
   user-select: none;
 }
-.bank-card.dragging { opacity: 0.55; }
+.bank-card.dragging { opacity: 0.94; pointer-events: none; }
 .bank-card.dragging .bank-card-border {
-  border-style: dashed;
-  box-shadow: 0 10px 24px rgba(30, 41, 80, 0.16);
+  transform: scale(1.018);
+  box-shadow: 0 14px 32px rgba(30, 41, 80, 0.2);
 }
+.drag-placeholder {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.34);
+}
+.sorting-cards { cursor: grabbing; }
 .bank-card-border {
   position: relative;
   padding: 10px 12px;
@@ -171,6 +177,11 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .bank-card:hover .bank-card-border { box-shadow: 0 6px 18px rgba(30, 41, 80, 0.1); }
 .bank-card:active .bank-card-border { transform: scale(0.995); }
 .bank-card .card-avatar { flex: 0 0 28px; width: 28px; height: 28px; font-size: 14px; box-shadow: none; }
+.bank-logo-avatar {
+  position: relative; overflow: hidden; padding: 2px;
+  background: #fff !important; border: 1px solid; isolation: isolate;
+}
+.bank-logo-avatar img { display: block; width: 100%; height: 100%; object-fit: contain; }
 
 .card-avatar {
   flex: 0 0 52px;
@@ -234,19 +245,22 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   font-size: 11px; line-height: 1.6; color: var(--text-2); overflow-wrap: anywhere;
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
 }
+.card-number, .meta-core, .meta-extra { padding-right: 30px; }
 .debit-card .bank-card-border { min-height: 90px; }
 
 .drag-handle {
-  position: absolute; right: 3px; top: 5px;
-  width: 24px; height: 38px;
+  position: absolute; right: 2px; bottom: 3px;
+  width: 36px; height: 42px;
   display: flex; align-items: center; justify-content: center;
   color: #c3c9dc;
   font-size: 20px;
+  border-radius: 10px;
   cursor: grab;
   touch-action: none;
   -webkit-user-select: none; user-select: none;
 }
-.drag-handle:active { cursor: grabbing; }
+.drag-handle:hover { color: var(--text-2); background: var(--surface-2); }
+.drag-handle:active { cursor: grabbing; color: var(--primary); background: var(--primary-weak); }
 
 /* ---------- 网站会员卡片 ---------- */
 
