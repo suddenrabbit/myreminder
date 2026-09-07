@@ -403,15 +403,21 @@
   };
 
   const creditMeta = (card) => {
-    const present = ([, value]) => value !== null && value !== undefined && String(value).trim() !== '';
-    const core = [
-      ['有效期', card.expiry, esc], ['额度', card.limit, money],
-      ['账单日', card.billingDay, dayLabel], ['还款日', card.repaymentDay, dayLabel],
-    ].filter(present).map(([label, value, format]) => `<span>${label} <b>${format(value)}</b></span>`);
-    const extra = [['年费', card.annualFee], ['权益', card.benefits]]
-      .filter(present).map(([label, value]) => `${label} ${String(value).trim()}`).join(' · ');
-    return `${core.length ? `<div class="meta-core">${core.join('')}</div>` : ''}
-      ${extra ? `<div class="meta-extra" title="${esc(extra)}">${esc(extra)}</div>` : ''}`;
+    const display = (value) => value === null || value === undefined || String(value).trim() === '' ? '—' : String(value).trim();
+    const details = [
+      ['账单日', dayLabel(card.billingDay)],
+      ['还款日', dayLabel(card.repaymentDay)],
+      ['年费', display(card.annualFee)],
+      ['权益', display(card.benefits)],
+    ];
+    return `<div class="meta-core credit-meta">
+      <span>有效期 <b>${esc(display(card.expiry))}</b></span>
+      <span>额度 <b>${money(card.limit)}</b></span>
+      <button type="button" class="card-info" data-info="${card.id}" title="查看信用卡详情" aria-label="查看信用卡详情" aria-expanded="false">i</button>
+      <div class="card-info-popover" data-info-panel="${card.id}" role="dialog" aria-label="信用卡详情" hidden>
+        <dl>${details.map(([label, value]) => `<div><dt>${label}</dt><dd>${esc(value)}</dd></div>`).join('')}</dl>
+      </div>
+    </div>`;
   };
 
   const CARD_NETWORKS = [
@@ -619,6 +625,24 @@
         if (card.type === 'debit') equalizeCardHeights();
         return;
       }
+      const infoBtnClicked = event.target.closest('.card-info');
+      if (infoBtnClicked) {
+        const infoMeta = infoBtnClicked.closest('.credit-meta');
+        const infoPanel = infoMeta && $('.card-info-popover', infoMeta);
+        if (!infoMeta || !infoPanel) return;
+        const open = infoBtnClicked.getAttribute('aria-expanded') === 'true';
+        $$('.card-info[aria-expanded="true"]', $('#panel-cards')).forEach((button) => {
+          button.setAttribute('aria-expanded', 'false');
+          const panel = button.closest('.credit-meta') && $('.card-info-popover', button.closest('.credit-meta'));
+          if (panel) panel.hidden = true;
+          button.closest('.bank-card')?.classList.remove('info-open');
+        });
+        infoBtnClicked.setAttribute('aria-expanded', String(!open));
+        infoPanel.hidden = open;
+        if (!open) infoBtnClicked.closest('.bank-card')?.classList.add('info-open');
+        return;
+      }
+      if (event.target.closest('.card-info-popover')) return;
       if (event.target.closest('.card-number')) return;
       const card = event.target.closest('.bank-card');
       if (card) openEditor('cards', Number(card.dataset.id));

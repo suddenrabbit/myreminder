@@ -153,6 +153,7 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   margin-bottom: 10px;
   user-select: none;
 }
+.bank-card.info-open { position: relative; z-index: 10; }
 .bank-card.dragging { opacity: 0.94; pointer-events: none; }
 .bank-card.dragging .bank-card-border {
   transform: scale(1.018);
@@ -241,11 +242,54 @@ button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .meta-core span { max-width: 100%; overflow-wrap: anywhere; }
 .meta-core span + span::before { content: '·'; padding: 0 6px; color: var(--text-3); }
 .meta-core b { font-weight: 500; color: var(--text); }
-.meta-extra {
-  font-size: 11px; line-height: 1.6; color: var(--text-2); overflow-wrap: anywhere;
-  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+.card-number, .meta-core { padding-right: 30px; }
+.credit-meta {
+  position: relative;
+  align-items: center;
+  flex-wrap: nowrap;
+  min-height: 24px;
+  white-space: nowrap;
+  z-index: 1;
 }
-.card-number, .meta-core, .meta-extra { padding-right: 30px; }
+.credit-meta > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.card-info {
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  margin-left: auto;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--text-2);
+  font: 600 13px/20px Georgia, serif;
+  text-align: center;
+  cursor: pointer;
+}
+.card-info:hover, .card-info[aria-expanded="true"] { border-color: var(--primary); color: var(--primary); background: var(--primary-weak); }
+.card-info-popover {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  width: min(280px, calc(100vw - 36px));
+  max-width: calc(100vw - 36px);
+  max-height: min(240px, 45vh);
+  overflow: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgba(30, 41, 80, 0.16);
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  z-index: 20;
+}
+.card-info-popover dl { margin: 0; }
+.card-info-popover dl > div { display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: 8px; }
+.card-info-popover dt { color: var(--text-3); }
+.card-info-popover dd { margin: 0; color: var(--text); }
 .debit-card .bank-card-border { min-height: 90px; }
 
 .drag-handle {
