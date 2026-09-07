@@ -38,14 +38,14 @@
   const textOn = (hex) => (luminance(hex) > 0.62 ? '#1c2333' : '#ffffff');
 
   const api = async (path, options = {}) => {
+    const requestToken = session.token;
     const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
-    if (session.token) headers.Authorization = `Bearer ${session.token}`;
+    if (requestToken) headers.Authorization = `Bearer ${requestToken}`;
     const response = await fetch(path, { ...options, headers });
     const payload = await response.json().catch(() => ({}));
     if (response.status === 401) {
-      session.token = '';
-      localStorage.removeItem('mr_token');
-      render();
+      // 旧会话的迟到响应不能把刚建立的新会话退出。
+      if (session.token === requestToken) invalidateSession();
       throw new Error(payload.error || '登录已失效');
     }
     if (!response.ok) throw new Error(payload.error || `请求失败 (${response.status})`);
@@ -63,6 +63,148 @@
     reveal: new Set(), // 已展开完整卡号的 card id
     loading: false,
   };
+
+  const BUSINESS_CACHE_DB = 'rabbitreminder-business-v1';
+  const BUSINESS_CACHE_STORE = 'snapshots';
+  let sessionGeneration = 0;
+  let cacheDbPromise = null;
+  let cacheWriteQueue = Promise.resolve();
+  let cacheResetPromise = Promise.resolve();
+
+  const currentSession = () => ({ token: session.token, generation: sessionGeneration });
+  const isCurrentSession = (context) =>
+    Boolean(context?.token) && context.token === session.token && context.generation === sessionGeneration;
+
+  function resetBusinessState() {
+    state.cards = [];
+    state.memberships = [];
+    state.reveal.clear();
+    state.loading = false;
+  }
+
+  function invalidateSession() {
+    session.token = '';
+    sessionGeneration += 1;
+    localStorage.removeItem('mr_token');
+    resetBusinessState();
+    closeSheet();
+    void clearBusinessCache().catch(() => {});
+    render();
+  }
+
+  function setAuthenticatedToken(token) {
+    session.token = token;
+    sessionGeneration += 1;
+    localStorage.setItem('mr_token', token);
+    resetBusinessState();
+  }
+
+  function openBusinessCache() {
+    if (!window.indexedDB) return Promise.reject(new Error('IndexedDB unavailable'));
+    if (cacheDbPromise) return cacheDbPromise;
+    cacheDbPromise = new Promise((resolve, reject) => {
+      const request = indexedDB.open(BUSINESS_CACHE_DB, 1);
+      request.onupgradeneeded = () => {
+        if (!request.result.objectStoreNames.contains(BUSINESS_CACHE_STORE)) {
+          request.result.createObjectStore(BUSINESS_CACHE_STORE, { keyPath: 'scope' });
+        }
+      };
+      request.onsuccess = () => {
+        const db = request.result;
+        db.onversionchange = () => {
+          db.close();
+          cacheDbPromise = null;
+        };
+        resolve(db);
+      };
+      request.onerror = () => {
+        cacheDbPromise = null;
+        reject(request.error || new Error('无法打开本地缓存'));
+      };
+    });
+    return cacheDbPromise;
+  }
+
+  const requestResult = (request) => new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error('本地缓存操作失败'));
+  });
+
+  async function sessionScope(token) {
+    const bytes = new TextEncoder().encode(token);
+    if (window.crypto?.subtle) {
+      const digest = await window.crypto.subtle.digest('SHA-256', bytes);
+      return `sha256:${[...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('')}`;
+    }
+    // 老旧 WebView 的非加密退化方案：仅持久化不可逆的稳定摘要，不保存明文 token。
+    let hashA = 0x811c9dc5;
+    let hashB = 0x9e3779b9;
+    for (const byte of bytes) {
+      hashA = Math.imul(hashA ^ byte, 0x01000193) >>> 0;
+      hashB = Math.imul(hashB ^ byte, 0x85ebca6b) >>> 0;
+    }
+    return `fallback:${hashA.toString(16).padStart(8, '0')}${hashB.toString(16).padStart(8, '0')}:${bytes.length}`;
+  }
+
+  async function readCachedSnapshot(context) {
+    try {
+      await cacheResetPromise;
+      if (!isCurrentSession(context)) return null;
+      const scope = await sessionScope(context.token);
+      if (!isCurrentSession(context)) return null;
+      const db = await openBusinessCache();
+      const snapshot = await requestResult(db.transaction(BUSINESS_CACHE_STORE, 'readonly').objectStore(BUSINESS_CACHE_STORE).get(scope));
+      if (!isCurrentSession(context) || !snapshot) return null;
+      if (!Array.isArray(snapshot.cards) || !Array.isArray(snapshot.memberships)) return null;
+      return { cards: snapshot.cards, memberships: snapshot.memberships };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function queueSnapshotWrite(context) {
+    cacheWriteQueue = cacheWriteQueue.catch(() => {}).then(async () => {
+      await cacheResetPromise;
+      if (!isCurrentSession(context)) return;
+      const scope = await sessionScope(context.token);
+      if (!isCurrentSession(context)) return;
+      const snapshot = {
+        scope,
+        cards: Array.isArray(state.cards) ? state.cards : [],
+        memberships: Array.isArray(state.memberships) ? state.memberships : [],
+        updatedAt: Date.now(),
+      };
+      const db = await openBusinessCache();
+      if (!isCurrentSession(context)) return;
+      await requestResult(db.transaction(BUSINESS_CACHE_STORE, 'readwrite').objectStore(BUSINESS_CACHE_STORE).put(snapshot));
+    });
+    // 缓存是加速层，写失败不能改变已成功的服务器操作结果。
+    cacheWriteQueue.catch(() => {});
+  }
+
+  function clearBusinessCache() {
+    const pendingWrites = cacheWriteQueue.catch(() => {});
+    cacheResetPromise = pendingWrites.then(async () => {
+      try {
+        const db = await openBusinessCache();
+        await requestResult(db.transaction(BUSINESS_CACHE_STORE, 'readwrite').objectStore(BUSINESS_CACHE_STORE).clear());
+        db.close();
+      } catch (_) {
+        // IndexedDB 不可用时仍应完成退出流程。
+      }
+      cacheDbPromise = null;
+      if (!window.indexedDB) return;
+      try {
+        await new Promise((resolve) => {
+          const request = indexedDB.deleteDatabase(BUSINESS_CACHE_DB);
+          request.onsuccess = request.onerror = request.onblocked = () => resolve();
+        });
+      } catch (_) {
+        // 删除数据库本身失败时，前面的 object store clear 仍已尽力清除业务数据。
+      }
+    });
+    return cacheResetPromise;
+  }
 
   // 拖拽结束后的时间戳：在其后 350ms 内吞掉系统 click，避免误触"点击卡片编辑"
   let dragSuppressUntil = 0;
@@ -146,9 +288,8 @@
       render();
       try {
         const result = await api('/api/session', { method: 'POST', body: JSON.stringify({ code }) });
-        session.token = result.token;
-        localStorage.setItem('mr_token', result.token);
-        await loadAll();
+        setAuthenticatedToken(result.token);
+        await loadAll({ cacheFirst: true });
       } catch (error) {
         session.error = error.message;
       } finally {
@@ -397,9 +538,7 @@
 
   const bindMainEvents = () => {
     $('#logout-btn').addEventListener('click', () => {
-      session.token = '';
-      localStorage.removeItem('mr_token');
-      render();
+      invalidateSession();
     });
 
     $$('.tab-btn').forEach((btn) =>
@@ -608,14 +747,19 @@
     const ordered = mergeCardOrder(state.cards, visibleOrder);
     // 顺序没变（如轻触手柄）则不请求、不重绘
     if (ordered.join(',') === state.cards.map((card) => card.id).join(',')) return;
+    const context = currentSession();
     try {
       await api('/api/cards/reorder', { method: 'POST', body: JSON.stringify({ ids: ordered }) });
+      if (!isCurrentSession(context)) return;
       const byId = new Map(state.cards.map((card) => [card.id, card]));
       state.cards = ordered.map((id) => byId.get(id)).filter(Boolean);
+      queueSnapshotWrite(context);
       renderCardsPanel();
     } catch (error) {
+      if (!isCurrentSession(context)) return;
       toast(error.message);
-      await loadCards();
+      await loadCards(context).catch(() => {});
+      if (!isCurrentSession(context)) return;
       renderCardsPanel();
     }
   }
@@ -859,12 +1003,15 @@
     const form = $('.sheet-form', root);
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
+      const context = currentSession();
       try {
-        if (tab === 'cards') await submitCardForm(id);
-        else await submitSiteForm(id);
+        if (tab === 'cards') await submitCardForm(id, context);
+        else await submitSiteForm(id, context);
+        if (!isCurrentSession(context)) return;
         closeSheet();
         render();
       } catch (error) {
+        if (!isCurrentSession(context)) return;
         toast(error.message);
       }
     });
@@ -874,12 +1021,22 @@
       deleteBtn.addEventListener('click', async () => {
         const kind = tab === 'cards' ? '这张银行卡' : '这个会员记录';
         if (!confirm(`确认删除${kind}？此操作不可恢复。`)) return;
+        const context = currentSession();
         try {
           if (tab === 'cards') await api(`/api/cards/${id}`, { method: 'DELETE' });
           else await api(`/api/memberships/${id}`, { method: 'DELETE' });
+          if (!isCurrentSession(context)) return;
+          if (tab === 'cards') {
+            state.cards = state.cards.filter((item) => item.id !== id);
+            state.reveal.delete(id);
+          } else {
+            state.memberships = state.memberships.filter((item) => item.id !== id);
+          }
+          queueSnapshotWrite(context);
           closeSheet();
-          await loadAll();
+          render();
         } catch (error) {
+          if (!isCurrentSession(context)) return;
           toast(error.message);
         }
       });
@@ -908,7 +1065,7 @@
 
   /* ------------------------------ 表单提交 ------------------------------ */
 
-  const submitCardForm = async (id) => {
+  const submitCardForm = async (id, context) => {
     const typeBtn = $('.type-btn.active');
     const type = typeBtn ? typeBtn.dataset.type : 'credit';
     const payload = {
@@ -930,12 +1087,22 @@
     }
     if (!payload.bank_name) throw new Error('请填写银行名称');
     if (!payload.card_number.trim()) throw new Error('请填写卡号');
-    if (id) await api(`/api/cards/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
-    else await api('/api/cards', { method: 'POST', body: JSON.stringify(payload) });
-    await loadCards();
+    const { item } = id
+      ? await api(`/api/cards/${id}`, { method: 'PUT', body: JSON.stringify(payload) })
+      : await api('/api/cards', { method: 'POST', body: JSON.stringify(payload) });
+    if (!isCurrentSession(context)) return;
+    if (item && typeof item === 'object') {
+      state.cards = id
+        ? state.cards.map((card) => card.id === id ? item : card)
+        : [...state.cards, item];
+      state.cards.sort((a, b) => Number(a.sortOrder) - Number(b.sortOrder) || Number(a.id) - Number(b.id));
+      queueSnapshotWrite(context);
+    }
+    // mutation 已成功且本地快照已同步；校准 GET 失败不应把保存表现为失败。
+    await loadCards(context).catch(() => {});
   };
 
-  const submitSiteForm = async (id) => {
+  const submitSiteForm = async (id, context) => {
     const payload = {
       site_key: $('#brand-key').value || 'other',
       site_name: $('#brand-name').value.trim(),
@@ -944,32 +1111,69 @@
     };
     if (!payload.site_name) throw new Error('请填写网站名称');
     if (!payload.expiry_date) throw new Error('请选择到期日');
-    if (id) await api(`/api/memberships/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
-    else await api('/api/memberships', { method: 'POST', body: JSON.stringify(payload) });
-    await loadMemberships();
+    const { item } = id
+      ? await api(`/api/memberships/${id}`, { method: 'PUT', body: JSON.stringify(payload) })
+      : await api('/api/memberships', { method: 'POST', body: JSON.stringify(payload) });
+    if (!isCurrentSession(context)) return;
+    if (item && typeof item === 'object') {
+      state.memberships = id
+        ? state.memberships.map((membership) => membership.id === id ? item : membership)
+        : [...state.memberships, item];
+      const today = todayStr();
+      state.memberships.sort((a, b) =>
+        Number(b.expiry < today) - Number(a.expiry < today)
+        || String(a.expiry).localeCompare(String(b.expiry))
+        || Number(a.id) - Number(b.id));
+      queueSnapshotWrite(context);
+    }
+    // mutation 已成功且本地快照已同步；校准 GET 失败不应把保存表现为失败。
+    await loadMemberships(context).catch(() => {});
   };
 
   /* ------------------------------ 数据加载 ------------------------------ */
 
-  async function loadCards() {
+  async function loadCards(context = currentSession()) {
     const { items } = await api('/api/cards');
+    if (!isCurrentSession(context)) return;
+    if (!Array.isArray(items)) throw new Error('银行卡数据格式异常');
     state.cards = items;
+    queueSnapshotWrite(context);
   }
 
-  async function loadMemberships() {
+  async function loadMemberships(context = currentSession()) {
     const { items } = await api('/api/memberships');
+    if (!isCurrentSession(context)) return;
+    if (!Array.isArray(items)) throw new Error('会员数据格式异常');
     state.memberships = items;
+    queueSnapshotWrite(context);
   }
 
-  async function loadAll() {
+  async function loadAll({ cacheFirst = false } = {}) {
+    const context = currentSession();
+    if (!isCurrentSession(context)) return;
     state.loading = true;
     render();
-    try {
-      await Promise.all([loadCards(), loadMemberships()]);
-    } finally {
-      state.loading = false;
-      render();
+    let cached = null;
+    if (cacheFirst) {
+      cached = await readCachedSnapshot(context);
+      if (!isCurrentSession(context)) return;
+      if (cached) {
+        state.cards = cached.cards;
+        state.memberships = cached.memberships;
+        state.loading = false;
+        render();
+      }
     }
+
+    const results = await Promise.allSettled([loadCards(context), loadMemberships(context)]);
+    if (!isCurrentSession(context)) return;
+    state.loading = false;
+    render();
+
+    const failed = results.find((result) => result.status === 'rejected');
+    if (!failed) return;
+    if (cached) toast('网络不可用，已显示本地数据');
+    else toast(failed.reason?.message || '数据加载失败，请稍后重试');
   }
 
   /* ------------------------------ Toast ------------------------------ */
@@ -1085,7 +1289,8 @@
     }).catch(() => {});
   }
 
-  // 首次进入：有 token 直接拉数据；无 token 走登录页
+  // 首次进入：有 token 先保持加载态并尝试本地快照，再在后台刷新。
+  if (session.token) state.loading = true;
   render();
-  if (session.token) loadAll().catch((error) => toast(error.message));
+  if (session.token) void loadAll({ cacheFirst: true });
 })();
