@@ -1,5 +1,5 @@
 /* RabbitReminder Service Worker — 发布前同步更新 VERSION 与 index.html 资源版本。 */
-const VERSION = 'rabbit-v25';
+const VERSION = 'rabbit-v27';
 const CACHE = `rabbitreminder-${VERSION}`;
 const BANK_LOGOS = ['icbc', 'abc', 'boc', 'ccb', 'bocom', 'psbc', 'cmb', 'citic', 'cib', 'spdb', 'pingan', 'cmbc']
   .map((key) => `/banks/${key}.svg`);

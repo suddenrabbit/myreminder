@@ -61,12 +61,14 @@
     if (pref === 'light' || pref === 'dark') return pref;
     return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   };
+  const THEME_COLORS = { light: '#e8ecf8', dark: '#12151f' };
   const applyTheme = () => {
     const resolved = resolvedTheme();
+    const color = THEME_COLORS[resolved];
     document.documentElement.dataset.theme = resolved;
-    const color = resolved === 'dark' ? '#12151f' : '#e8ecf8';
+    document.documentElement.style.colorScheme = resolved;
     document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => {
-      if (!meta.media) meta.setAttribute('content', color);
+      meta.setAttribute('content', color);
     });
   };
   const toggleTheme = () => {
@@ -77,6 +79,27 @@
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
     if (themePref() === 'system') applyTheme();
   });
+
+  const syncIosSafeTop = () => {
+    const standalone = window.navigator.standalone === true
+      || matchMedia('(display-mode: standalone)').matches;
+    const ios = /iP(hone|ad|od)/.test(navigator.userAgent)
+      || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (!standalone || !ios || !document.body) return;
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;height:env(safe-area-inset-top,0px)';
+    document.body.appendChild(probe);
+    const inset = probe.getBoundingClientRect().height;
+    probe.remove();
+    if (inset >= 1) {
+      document.documentElement.style.removeProperty('--safe-top');
+      return;
+    }
+    const longSide = Math.max(screen.width || 0, screen.height || 0);
+    document.documentElement.style.setProperty('--safe-top', longSide >= 852 ? '59px' : '47px');
+  };
+  document.addEventListener('DOMContentLoaded', syncIosSafeTop);
+  window.visualViewport?.addEventListener('resize', syncIosSafeTop);
 
   const session = { token: localStorage.getItem('mr_token') || '', busy: false, error: '' };
   const state = {
@@ -677,6 +700,8 @@
         $('#panel-cards').classList.toggle('active', state.tab === 'cards');
         $('#panel-sites').classList.toggle('active', state.tab === 'sites');
         $('#header-summary').hidden = state.tab !== 'cards';
+        const list = $('.list-area');
+        if (list) list.scrollTop = 0;
         const title = $('#page-title');
         if (title) title.textContent = state.tab === 'sites' ? '会员' : '卡片';
         const addBtn = $('#add-btn');
@@ -908,8 +933,15 @@
       animateList(before);
 
       const edge = 88;
-      if (event.clientY < edge + $('.app-header').offsetHeight) window.scrollBy({ top: -10, behavior: 'auto' });
-      else if (event.clientY > innerHeight - edge) window.scrollBy({ top: 10, behavior: 'auto' });
+      const scroller = $('.list-area');
+      const headerH = $('.app-header')?.offsetHeight || 0;
+      if (event.clientY < edge + headerH) {
+        if (scroller) scroller.scrollTop -= 10;
+        else window.scrollBy({ top: -10, behavior: 'auto' });
+      } else if (event.clientY > innerHeight - edge) {
+        if (scroller) scroller.scrollTop += 10;
+        else window.scrollBy({ top: 10, behavior: 'auto' });
+      }
     }
 
     function onEnd(event) {

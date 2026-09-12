@@ -34,7 +34,7 @@
   --glass-bot: rgba(245, 248, 255, 0.22);
   --glass-border: rgba(255, 255, 255, 0.62);
   --glass-shine: rgba(255, 255, 255, 0.5);
-  --header-fill: color-mix(in srgb, var(--bg) 58%, transparent);
+  --header-fill: var(--bg);
   --icon-btn-bg: rgba(255, 255, 255, 0.62);
   --dock-active: rgba(255, 255, 255, 0.86);
   --notice-bg: rgba(255, 255, 255, 0.92);
@@ -43,12 +43,17 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html {
   height: 100%;
-  background: var(--bg);
+  background-color: var(--bg);
 }
-html, body { touch-action: pan-x pan-y; overflow-x: hidden; }
+html, body {
+  height: 100%;
+  touch-action: pan-x pan-y;
+  overflow: hidden;
+}
 body {
   min-height: 100%;
   min-height: 100dvh;
+  height: 100dvh;
   font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Segoe UI', 'Microsoft YaHei', sans-serif;
   background-color: var(--bg);
   background-image:
@@ -62,8 +67,10 @@ body {
 #app {
   max-width: 720px;
   margin: 0 auto;
-  min-height: 100%;
-  padding-bottom: calc(var(--safe-bottom) + var(--dock-size) + var(--dock-inset) + 20px);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 button { font: inherit; cursor: pointer; border: none; background: none; color: inherit; }
@@ -79,10 +86,12 @@ textarea:focus-visible {
 /* ------------------------------- 登录页 ------------------------------- */
 
 .login-screen {
-  min-height: 100dvh;
+  flex: 1;
+  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: auto;
   padding: calc(var(--safe-top) + 24px) 24px calc(var(--safe-bottom) + 24px);
 }
 .login-card {
@@ -118,14 +127,23 @@ textarea:focus-visible {
 
 /* ------------------------------- 顶栏 + 分段 ------------------------------- */
 
-.app-header {
-  position: sticky;
+/* iOS 26 PWA 会采样顶部 fixed 实色来给状态栏着色；必须贴顶、全宽、不透明。 */
+#status-bleed {
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  height: max(env(safe-area-inset-top, 0px), 12px);
+  background-color: var(--bg);
+  pointer-events: none;
+}
+
+.app-header {
+  flex: 0 0 auto;
   z-index: 20;
   padding: calc(var(--safe-top) + var(--header-pad-top)) 18px var(--header-pad-bottom);
-  background: var(--header-fill);
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  background-color: var(--header-fill);
   border-bottom: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
 }
 .header-main {
@@ -329,7 +347,16 @@ body:has(#sheet-root.open) .dock {
 
 /* ------------------------------- 列表 ------------------------------- */
 
-.list-area { padding: 4px 18px 0; display: block; }
+.list-area {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: block;
+  padding: 4px 18px calc(var(--safe-bottom) + var(--dock-size) + var(--dock-inset) + 20px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
 .list-panel { display: none; }
 .list-panel.active { display: block; }
 .network-logo {
@@ -721,7 +748,7 @@ body:has(#sheet-root.open) .dock {
 .site-group { margin-bottom: 8px; }
 .site-group-title {
   position: sticky;
-  top: calc(var(--safe-top) + var(--header-pad-top) + var(--header-row) + var(--header-pad-bottom) - 1px);
+  top: 0;
   z-index: 8;
   padding: 10px 2px 8px;
   margin: 0 0 4px;
@@ -729,9 +756,7 @@ body:has(#sheet-root.open) .dock {
   font-weight: 700;
   letter-spacing: 0.02em;
   color: var(--text-2);
-  background: var(--header-fill);
-  backdrop-filter: blur(18px) saturate(160%);
-  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  background-color: var(--bg);
 }
 .site-group-title em {
   font-style: normal;
@@ -987,7 +1012,7 @@ textarea.text-input { resize: vertical; min-height: 68px; }
 @media (max-width: 480px) {
   .app-header { padding-left: 12px; padding-right: 12px; }
   .cards-summary { gap: 8px; }
-  .list-area { padding: 4px 12px 0; }
+  .list-area { padding: 4px 12px calc(var(--safe-bottom) + var(--dock-size) + var(--dock-inset) + 20px); }
   .bank-card-border { padding: 12px; }
   .bank-name { font-size: 15px; }
   .detail-tag { font-size: 10px; padding: 2px 7px; }
@@ -1045,7 +1070,7 @@ textarea.text-input { resize: vertical; min-height: 68px; }
   --glass-bot: rgba(18, 22, 34, 0.34);
   --glass-border: rgba(255, 255, 255, 0.14);
   --glass-shine: rgba(255, 255, 255, 0.16);
-  --header-fill: color-mix(in srgb, var(--bg) 55%, transparent);
+  --header-fill: var(--bg);
   --icon-btn-bg: rgba(28, 34, 50, 0.72);
   --dock-active: rgba(255, 255, 255, 0.14);
   --notice-bg: rgba(28, 34, 50, 0.92);
