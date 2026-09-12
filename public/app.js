@@ -2,7 +2,7 @@
  * RabbitReminder PWA 前端
  * 两个 Tab：
  *   1) 银行卡：借记卡(银行/卡号) / 信用卡(+种类/有效期/额度/组织/账单日/还款日/权益/年费)
- *      卡片拖拽排序、点击编辑、左侧银行首字大圆、可调边框色
+ *      卡片拖拽排序、点击编辑、品牌色卡面、可调卡面颜色
  *   2) 网站会员：网站名/到期日，按到期远近自动排序（不可手工排序）
  * 数据通过 Cloudflare Worker API 存 D1；本地口令登录。
  * ============================================================ */
@@ -263,12 +263,12 @@
     app.innerHTML = `
       <div class="login-screen">
         <div class="login-card">
-          <img class="login-logo" src="/rabbit-wallet-192.png" alt="" width="72" height="72" />
+          <img class="login-logo" src="/rabbit-wallet-192.png" alt="" width="88" height="88" />
           <h1>RabbitReminder</h1>
-          <p class="login-sub">银行卡 · 网站会员到期提醒</p>
+          <p class="login-sub">你的卡和会员，到期前会在这里</p>
           <form id="login-form">
             <div class="field">
-              <input id="login-code" type="password" inputmode="text" autocomplete="off"
+              <input id="login-code" class="text-input" type="password" inputmode="text" autocomplete="off"
                      placeholder="输入访问口令" required autofocus />
             </div>
             ${session.error ? `<p class="form-error">${esc(session.error)}</p>` : ''}
@@ -305,38 +305,52 @@
     <header class="app-header">
       <div class="header-main">
         <div class="header-brand">
-          <img class="brand-icon" src="/rabbit-wallet-192.png" alt="" width="30" height="30" />
-          <strong>RabbitReminder</strong>
+          <img class="brand-icon" src="/rabbit-wallet-192.png" alt="" width="32" height="32" />
+          <strong id="page-title">${state.tab === 'sites' ? '会员' : '卡片'}</strong>
         </div>
-        <div class="header-count">
-          <button class="icon-btn" id="logout-btn" title="退出登录" aria-label="退出登录">⏻</button>
+        <div class="header-actions">
+          <button class="icon-btn" id="logout-btn" title="退出登录" aria-label="退出登录">${lineIcon('logout')}</button>
         </div>
       </div>
       <div id="header-summary" ${state.tab === 'cards' ? '' : 'hidden'}>${cardsSummaryMarkup()}</div>
     </header>`;
 
-  const tabsMarkup = () => `
-    <nav class="tab-bar" aria-label="主导航">
-      <button class="tab-btn ${state.tab === 'cards' ? 'active' : ''}" data-tab="cards" aria-current="${state.tab === 'cards' ? 'page' : 'false'}">
-        <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18M7 15h4"/></svg>
-        <span>银行卡 ${state.cards.length ? `<em>${state.cards.length}</em>` : ''}</span>
-      </button>
-      <button class="tab-btn ${state.tab === 'sites' ? 'active' : ''}" data-tab="sites" aria-current="${state.tab === 'sites' ? 'page' : 'false'}">
-        <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="m7 9 2 6h6l2-6-3 2-2-4-2 4z"/></svg>
-        <span>网站会员 ${state.memberships.length ? `<em>${state.memberships.length}</em>` : ''}</span>
-      </button>
+  const addLabel = () => (state.tab === 'sites' ? '新增网站会员' : '新增银行卡');
+
+  const dockMarkup = () => `
+    <nav class="dock" aria-label="主导航">
+      <div class="dock-tabs glass" role="tablist" aria-label="分类">
+        <button type="button" class="dock-tab ${state.tab === 'cards' ? 'active' : ''}" data-tab="cards" role="tab" aria-selected="${state.tab === 'cards'}">
+          ${lineIcon('card')}<span>银行卡</span>${state.cards.length ? `<em>${state.cards.length}</em>` : ''}
+        </button>
+        <button type="button" class="dock-tab ${state.tab === 'sites' ? 'active' : ''}" data-tab="sites" role="tab" aria-selected="${state.tab === 'sites'}">
+          ${lineIcon('pin')}<span>会员</span>${state.memberships.length ? `<em>${state.memberships.length}</em>` : ''}
+        </button>
+      </div>
+      <button type="button" class="dock-add glass" id="add-btn" title="${addLabel()}" aria-label="${addLabel()}">${lineIcon('plus')}</button>
     </nav>`;
 
-  const cardAvatar = (name, color) => `
-    <span class="card-avatar" style="background:${esc(color)};color:${textOn(color)}">${esc(firstChar(name))}</span>`;
+  const brandColor = (hex) => (/^#[0-9a-fA-F]{6}$/.test(String(hex || '')) ? hex : '#3b6bfa');
+  const cardInk = (hex) => {
+    const ink = textOn(brandColor(hex));
+    return {
+      ink,
+      inkSoft: ink === '#ffffff' ? 'rgba(255,255,255,0.76)' : 'rgba(28,35,51,0.62)',
+    };
+  };
+
+  const cardAvatar = (name, color, { onBrand = false } = {}) =>
+    onBrand
+      ? `<span class="card-avatar letter-avatar">${esc(firstChar(name))}</span>`
+      : `<span class="card-avatar" style="background:${esc(color)};color:${textOn(color)}">${esc(firstChar(name))}</span>`;
 
   const BANK_LOGO_KEYS = new Set(['icbc', 'abc', 'boc', 'ccb', 'bocom', 'psbc', 'cmb', 'citic', 'cib', 'spdb', 'pingan', 'cmbc']);
   const bankAvatar = (card) => {
     const matched = BANK_LOGO_KEYS.has(card.bankKey)
       ? card.bankKey
       : BANK_PRESETS.find((bank) => bank.name === String(card.bankName || '').trim())?.key;
-    if (!BANK_LOGO_KEYS.has(matched)) return cardAvatar(card.bankName, card.color);
-    return `<span class="card-avatar bank-logo-avatar" style="border-color:${esc(card.color)}">
+    if (!BANK_LOGO_KEYS.has(matched)) return cardAvatar(card.bankName, card.color, { onBrand: true });
+    return `<span class="card-avatar bank-logo-avatar">
       <img src="/banks/${matched}.svg" alt="" width="28" height="28" loading="eager" />
     </span>`;
   };
@@ -347,8 +361,13 @@
       hidden: '<path d="m3 3 18 18M10.6 5.1 12 5c6.5 0 10 7 10 7a19 19 0 0 1-3 3.8M6.1 6.1A20 20 0 0 0 2 12s3.5 7 10 7a12 12 0 0 0 5.9-1.9M9.9 9.9a3 3 0 0 0 4.2 4.2"/>',
       copy: '<rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h3"/>',
       check: '<path d="m5 12 4 4L19 6"/>',
+      plus: '<path d="M12 5v14M5 12h14"/>',
+      card: '<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18M7 15h4"/>',
+      pin: '<path d="M12 21s7-5.4 7-11a7 7 0 1 0-14 0c0 5.6 7 11 7 11Z"/><circle cx="12" cy="10" r="2.2"/>',
+      logout: '<path d="M9 5H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h3"/><path d="M16 12H9"/><path d="m13 9 3 3-3 3"/>',
+      grip: '<circle cx="9" cy="6.5" r="1.45"/><circle cx="15" cy="6.5" r="1.45"/><circle cx="9" cy="12" r="1.45"/><circle cx="15" cy="12" r="1.45"/><circle cx="9" cy="17.5" r="1.45"/><circle cx="15" cy="17.5" r="1.45"/>',
     };
-    return `<svg class="action-icon" viewBox="0 0 24 24" aria-hidden="true">${paths[name]}</svg>`;
+    return `<svg class="action-icon${name === 'grip' ? ' filled' : ''}" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">${paths[name]}</svg>`;
   };
 
   const revealBtn = (card) => {
@@ -436,23 +455,32 @@
     return network ? `<img class="network-logo" src="/networks/${network.file}.svg" alt="${network.value}" title="${network.value}" width="48" height="24" />` : '';
   };
 
-  const bankCardMarkup = (card, index) => `
+  const bankCardMarkup = (card, index) => {
+    const color = brandColor(card.color);
+    const ink = cardInk(color);
+    const kind = card.type === 'credit' && card.kind
+      ? `<span class="detail-tag" title="${esc(card.kind)}">${esc(card.kind)}</span>`
+      : '';
+    return `
     <article class="bank-card ${card.type === 'credit' ? 'credit-card' : 'debit-card'}" data-id="${card.id}" data-index="${index}"
-             style="--card-color:${esc(card.color)}">
-      <div class="bank-card-border" style="border-color:${esc(card.color)}">
+             style="--card-color:${esc(color)};--card-ink:${ink.ink};--card-ink-soft:${ink.inkSoft}">
+      <div class="bank-card-border">
+        <span class="card-glow" aria-hidden="true"></span>
         <div class="bank-card-body">
           <div class="bank-card-title">
             ${bankAvatar(card)}
-            <span class="bank-name" title="${esc(card.bankName)} · ${card.type === 'credit' ? '信用卡' : '借记卡'}"><strong>${esc(card.bankName)}</strong> · ${card.type === 'credit' ? '信用卡' : '借记卡'}</span>
-            ${card.type === 'credit' ? [card.kind].filter(Boolean).map((tag) => `<span class="detail-tag" title="${esc(tag)}">${esc(tag)}</span>`).join('') : ''}
+            <span class="bank-name" title="${esc(card.bankName)}">${esc(card.bankName)}</span>
+            <span class="card-type-badge">${card.type === 'credit' ? '信用' : '借记'}</span>
+            ${kind}
             ${networkLogo(card.network)}
           </div>
           ${cardNumberLine(card)}
           ${card.type === 'credit' ? creditMeta(card) : ''}
         </div>
-        <button type="button" class="drag-handle" title="按住拖拽排序" aria-label="按住拖拽排序">⠿</button>
+        <button type="button" class="drag-handle" title="按住拖拽排序" aria-label="按住拖拽排序">${lineIcon('grip')}</button>
       </div>
     </article>`;
+  };
 
   const daysBadge = (membership) => {
     const days = daysFromToday(membership.expiry);
@@ -464,8 +492,8 @@
 
   const siteCardMarkup = (membership, index) => `
     <article class="site-card" data-id="${membership.id}" data-index="${index}"
-             style="--card-color:${esc(membership.color)}">
-      <div class="site-card-border" style="border-color:${esc(membership.color)}">
+             style="--card-color:${esc(brandColor(membership.color))}">
+      <div class="site-card-border">
         ${cardAvatar(membership.siteName, membership.color)}
         <div class="site-card-body">
           <div class="site-card-title">
@@ -479,11 +507,19 @@
     </article>`;
 
   const emptyMarkup = (type) => {
-    const text =
-      type === 'cards'
-        ? '还没有银行卡<br />点击右下角 + 新增一张'
-        : '还没有网站会员<br />点击右下角 + 添加到期提醒';
-    return `<div class="empty-state">${text}</div>`;
+    const isCards = type === 'cards';
+    return `<div class="empty-state">
+      <img src="/rabbit-wallet-192.png" alt="" width="96" height="96" />
+      <p>${isCards ? '还没有银行卡' : '还没有网站会员'}</p>
+      <span>${isCards ? '把常用的卡收进这个钱包' : '到期前提醒，少一份遗忘'}</span>
+      <button type="button" class="btn btn-primary" data-empty-add>${isCards ? '添加第一张卡' : '添加到期提醒'}</button>
+    </div>`;
+  };
+
+  const skeletonMarkup = (type) => {
+    const count = type === 'sites' ? 3 : 4;
+    const cls = type === 'sites' ? 'skeleton-card skeleton-site' : 'skeleton-card';
+    return `<div class="skeleton-list" aria-hidden="true">${Array.from({ length: count }, () => `<div class="${cls}"></div>`).join('')}</div>`;
   };
 
   const cardsSummaryMarkup = () => {
@@ -500,16 +536,17 @@
     }
     const total = [...bankLimits.values()].reduce((sum, limit) => sum + limit, 0);
     return `<p class="cards-summary" aria-label="银行卡汇总">
-      <button type="button" class="summary-filter ${state.cardFilter === 'debit' ? 'active' : ''}" data-card-filter="debit" aria-pressed="${state.cardFilter === 'debit'}">借记卡 ${debitCount} 张</button>
-      <button type="button" class="summary-filter credit-summary ${state.cardFilter === 'credit' ? 'active' : ''}" data-card-filter="credit" aria-pressed="${state.cardFilter === 'credit'}" title="同一家银行只计一次，取该银行最高信用额度"><span>信用卡 ${creditCards.length} 张</span><span class="summary-limit">总额度 ${total.toLocaleString('zh-CN', { maximumFractionDigits: 2 })} 元</span></button>
+      <button type="button" class="summary-filter ${state.cardFilter === 'debit' ? 'active' : ''}" data-card-filter="debit" aria-pressed="${state.cardFilter === 'debit'}">借记卡 ${debitCount}</button>
+      <button type="button" class="summary-filter credit-summary ${state.cardFilter === 'credit' ? 'active' : ''}" data-card-filter="credit" aria-pressed="${state.cardFilter === 'credit'}" title="同一家银行只计一次，取该银行最高信用额度"><span>信用卡 ${creditCards.length}</span><span class="summary-limit">总额度 ${total.toLocaleString('zh-CN', { maximumFractionDigits: 2 })}</span></button>
     </p>`;
   };
 
   const visibleCards = () => state.cards.filter((card) => !state.cardFilter || card.type === state.cardFilter);
   const cardsPanelMarkup = () => {
+    if (state.loading && !state.cards.length) return skeletonMarkup('cards');
     const cards = visibleCards();
     const empty = state.cardFilter
-      ? `<div class="empty-state">暂无${state.cardFilter === 'credit' ? '信用卡' : '借记卡'}<br />再次点击上方统计可查看全部</div>`
+      ? `<div class="empty-state"><p>暂无${state.cardFilter === 'credit' ? '信用卡' : '借记卡'}</p><span>再次点击上方筛选可查看全部</span></div>`
       : emptyMarkup('cards');
     return `<div id="cards-list">${cards.length ? cards.map(bankCardMarkup).join('') : empty}</div>`;
   };
@@ -522,10 +559,11 @@
   }
 
   const mainMarkup = () => {
-    if (state.loading) return `<div class="center-hint">加载中…</div>`;
-    const sitesBody = state.memberships.length
-      ? state.memberships.map((membership, index) => siteCardMarkup(membership, index)).join('')
-      : emptyMarkup('sites');
+    const sitesBody = state.loading && !state.memberships.length
+      ? skeletonMarkup('sites')
+      : state.memberships.length
+        ? state.memberships.map((membership, index) => siteCardMarkup(membership, index)).join('')
+        : emptyMarkup('sites');
     return `
       ${headerMarkup()}
       <main class="list-area">
@@ -536,8 +574,7 @@
           ${sitesBody}
         </section>
       </main>
-      ${tabsMarkup()}
-      <button class="fab" id="fab-btn" title="新增">＋</button>`;
+      ${dockMarkup()}`;
   };
 
   /* ------------------------------ 事件绑定 ------------------------------ */
@@ -547,19 +584,26 @@
       invalidateSession();
     });
 
-    $$('.tab-btn').forEach((btn) =>
+    $$('.dock-tab').forEach((btn) =>
       btn.addEventListener('click', () => {
         if (state.tab === btn.dataset.tab) return;
         state.tab = btn.dataset.tab;
-        // 两个列表已经挂载，只切换可见状态，保留页头和图标 DOM。
-        $$('.tab-btn').forEach((tab) => {
+        $$('.dock-tab').forEach((tab) => {
           const active = tab.dataset.tab === state.tab;
           tab.classList.toggle('active', active);
-          tab.setAttribute('aria-current', active ? 'page' : 'false');
+          tab.setAttribute('aria-selected', String(active));
         });
         $('#panel-cards').classList.toggle('active', state.tab === 'cards');
         $('#panel-sites').classList.toggle('active', state.tab === 'sites');
         $('#header-summary').hidden = state.tab !== 'cards';
+        const title = $('#page-title');
+        if (title) title.textContent = state.tab === 'sites' ? '会员' : '卡片';
+        const addBtn = $('#add-btn');
+        if (addBtn) {
+          const label = addLabel();
+          addBtn.setAttribute('aria-label', label);
+          addBtn.title = label;
+        }
         if (state.tab === 'cards') equalizeCardHeights();
       }),
     );
@@ -573,12 +617,16 @@
       }
     });
 
-    $('#fab-btn').addEventListener('click', () => openEditor(state.tab));
+    $('#add-btn').addEventListener('click', () => openEditor(state.tab));
 
     // 委托事件：筛选或更新银行卡列表时保留页头与外层监听。
     $('#panel-cards').addEventListener('click', (event) => {
       // 刚结束一次拖拽时，浏览器会补发 click，这里吞掉避免误开编辑
       if (Date.now() < dragSuppressUntil) return;
+      if (event.target.closest('[data-empty-add]')) {
+        openEditor('cards');
+        return;
+      }
       const copyBtnClicked = event.target.closest('.num-copy');
       if (copyBtnClicked) {
         const id = Number(copyBtnClicked.dataset.copy);
@@ -649,6 +697,10 @@
     });
 
     $('#panel-sites').addEventListener('click', (event) => {
+      if (event.target.closest('[data-empty-add]')) {
+        openEditor('sites');
+        return;
+      }
       const card = event.target.closest('.site-card');
       if (card) openEditor('sites', Number(card.dataset.id));
     });
@@ -839,7 +891,7 @@
 
   const colorRow = (color) => `
     <div class="field">
-      <label>卡片边框色</label>
+      <label>卡面颜色</label>
       <div class="color-row">
         ${PALETTE.map(
           (c) => `
@@ -1219,10 +1271,8 @@
     }
     const app = $('#app');
     app.innerHTML = mainMarkup();
-    if (!state.loading) {
-      bindMainEvents();
-      equalizeCardHeights();
-    }
+    bindMainEvents();
+    equalizeCardHeights();
   }
 
   // 借记卡按实际最高内容等高；信用卡随内容自然撑高；缩放、旋转屏幕时重新计算，不裁切详情。
