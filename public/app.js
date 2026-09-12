@@ -54,6 +54,30 @@
 
   /* ------------------------------ 状态 ------------------------------ */
 
+  const THEME_KEY = 'mr_theme';
+  const themePref = () => localStorage.getItem(THEME_KEY) || 'system';
+  const resolvedTheme = () => {
+    const pref = themePref();
+    if (pref === 'light' || pref === 'dark') return pref;
+    return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  };
+  const applyTheme = () => {
+    const resolved = resolvedTheme();
+    document.documentElement.dataset.theme = resolved;
+    const color = resolved === 'dark' ? '#12151f' : '#e8ecf8';
+    document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => {
+      if (!meta.media) meta.setAttribute('content', color);
+    });
+  };
+  const toggleTheme = () => {
+    localStorage.setItem(THEME_KEY, resolvedTheme() === 'dark' ? 'light' : 'dark');
+    applyTheme();
+  };
+  applyTheme();
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (themePref() === 'system') applyTheme();
+  });
+
   const session = { token: localStorage.getItem('mr_token') || '', busy: false, error: '' };
   const state = {
     tab: 'cards', // 'cards' | 'sites'
@@ -261,6 +285,7 @@
   const renderLogin = () => {
     const app = $('#app');
     app.innerHTML = `
+      <button class="icon-btn login-theme" id="theme-btn" title="${resolvedTheme() === 'dark' ? '浅色模式' : '深色模式'}" aria-label="${resolvedTheme() === 'dark' ? '切换浅色模式' : '切换深色模式'}">${lineIcon(resolvedTheme() === 'dark' ? 'sun' : 'moon')}</button>
       <div class="login-screen">
         <div class="login-card">
           <img class="login-logo" src="/rabbit-wallet-192.png" alt="" width="88" height="88" />
@@ -278,6 +303,14 @@
           </form>
         </div>
       </div>`;
+
+    $('#theme-btn')?.addEventListener('click', () => {
+      const value = $('#login-code')?.value || '';
+      toggleTheme();
+      renderLogin();
+      const input = $('#login-code');
+      if (input) input.value = value;
+    });
 
     $('#login-form').addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -309,6 +342,7 @@
           <strong id="page-title">${state.tab === 'sites' ? '会员' : '卡片'}</strong>
         </div>
         <div class="header-actions">
+          <button class="icon-btn" id="theme-btn" title="${resolvedTheme() === 'dark' ? '浅色模式' : '深色模式'}" aria-label="${resolvedTheme() === 'dark' ? '切换浅色模式' : '切换深色模式'}">${lineIcon(resolvedTheme() === 'dark' ? 'sun' : 'moon')}</button>
           <button class="icon-btn" id="logout-btn" title="退出登录" aria-label="退出登录">${lineIcon('logout')}</button>
         </div>
       </div>
@@ -364,6 +398,8 @@
       plus: '<path d="M12 5v14M5 12h14"/>',
       card: '<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18M7 15h4"/>',
       pin: '<path d="M12 21s7-5.4 7-11a7 7 0 1 0-14 0c0 5.6 7 11 7 11Z"/><circle cx="12" cy="10" r="2.2"/>',
+      sun: '<circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M5 12H3M21 12h-2M6.2 6.2 4.8 4.8M19.2 19.2l-1.4-1.4M6.2 17.8 4.8 19.2M19.2 4.8l-1.4 1.4"/>',
+      moon: '<path d="M20 14.5A8.5 8.5 0 1 1 9.5 4 7 7 0 0 0 20 14.5Z"/>',
       logout: '<path d="M9 5H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h3"/><path d="M16 12H9"/><path d="m13 9 3 3-3 3"/>',
       grip: '<circle cx="9" cy="6.5" r="1.45"/><circle cx="15" cy="6.5" r="1.45"/><circle cx="9" cy="12" r="1.45"/><circle cx="15" cy="12" r="1.45"/><circle cx="9" cy="17.5" r="1.45"/><circle cx="15" cy="17.5" r="1.45"/>',
     };
@@ -455,56 +491,93 @@
     return network ? `<img class="network-logo" src="/networks/${network.file}.svg" alt="${network.value}" title="${network.value}" width="48" height="24" />` : '';
   };
 
-  const bankCardMarkup = (card, index) => {
+  const bankCardMarkup = (card, index, { preview = false } = {}) => {
     const color = brandColor(card.color);
     const ink = cardInk(color);
+    const typeLabel = card.type === 'credit' ? '信用卡' : '借记卡';
+    const bankLabel = card.bankName || '银行名称';
     const kind = card.type === 'credit' && card.kind
       ? `<span class="detail-tag" title="${esc(card.kind)}">${esc(card.kind)}</span>`
       : '';
+    const number = preview
+      ? `<div class="card-number"><span class="num-text">${esc(maskNumber(card.number))}</span></div>`
+      : cardNumberLine(card);
     return `
-    <article class="bank-card ${card.type === 'credit' ? 'credit-card' : 'debit-card'}" data-id="${card.id}" data-index="${index}"
+    <article class="bank-card ${card.type === 'credit' ? 'credit-card' : 'debit-card'} ${ink.ink === '#ffffff' ? 'on-dark' : 'on-light'}" ${preview ? '' : `data-id="${card.id}" data-index="${index}"`}
              style="--card-color:${esc(color)};--card-ink:${ink.ink};--card-ink-soft:${ink.inkSoft}">
       <div class="bank-card-border">
         <span class="card-glow" aria-hidden="true"></span>
         <div class="bank-card-body">
           <div class="bank-card-title">
             ${bankAvatar(card)}
-            <span class="bank-name" title="${esc(card.bankName)}">${esc(card.bankName)}</span>
-            <span class="card-type-badge">${card.type === 'credit' ? '信用' : '借记'}</span>
+            <span class="bank-name" title="${esc(bankLabel)} · ${typeLabel}"><strong>${esc(bankLabel)}</strong><span class="bank-type"> · ${typeLabel}</span></span>
             ${kind}
             ${networkLogo(card.network)}
           </div>
-          ${cardNumberLine(card)}
-          ${card.type === 'credit' ? creditMeta(card) : ''}
+          ${number}
+          ${card.type === 'credit' && !preview ? creditMeta(card) : ''}
+          ${card.type === 'credit' && preview ? `<div class="meta-core"><span>有效期 <b>${esc(card.expiry || '—')}</b></span><span>额度 <b>${money(card.limit)}</b></span></div>` : ''}
         </div>
-        <button type="button" class="drag-handle" title="按住拖拽排序" aria-label="按住拖拽排序">${lineIcon('grip')}</button>
       </div>
     </article>`;
   };
 
-  const daysBadge = (membership) => {
+  const membershipGroupOf = (membership) => {
     const days = daysFromToday(membership.expiry);
-    if (days === null) return '';
-    const cls = days < 0 ? 'danger' : days === 0 ? 'warn' : days <= 30 ? 'warn' : 'ok';
-    const label = days < 0 ? `已过期 ${-days} 天` : days === 0 ? '今天到期' : `剩 ${days} 天`;
-    return `<span class="days-badge ${cls}">${label}</span>`;
+    if (days === null) return 'later';
+    if (days < 0) return 'expired';
+    if (days <= 7) return 'soon';
+    const today = todayStr();
+    if (String(membership.expiry).slice(0, 7) === today.slice(0, 7)) return 'month';
+    return 'later';
   };
 
-  const siteCardMarkup = (membership, index) => `
-    <article class="site-card" data-id="${membership.id}" data-index="${index}"
+  const countdownMarkup = (membership) => {
+    const days = daysFromToday(membership.expiry);
+    if (days === null) return '<div class="countdown muted"><b>—</b><span>未设置</span></div>';
+    if (days < 0) return `<div class="countdown danger"><b>${-days}</b><span>已过期</span></div>`;
+    if (days === 0) return '<div class="countdown warn"><b>今</b><span>天到期</span></div>';
+    const cls = days <= 7 ? 'warn' : 'ok';
+    return `<div class="countdown ${cls}"><b>${days}</b><span>天后</span></div>`;
+  };
+
+  const siteCardMarkup = (membership, index, { preview = false } = {}) => {
+    const urgency = membershipGroupOf(membership);
+    return `
+    <article class="site-card${urgency === 'expired' ? ' expired' : urgency === 'soon' ? ' soon' : ''}" ${preview ? '' : `data-id="${membership.id}" data-index="${index}"`}
              style="--card-color:${esc(brandColor(membership.color))}">
       <div class="site-card-border">
         ${cardAvatar(membership.siteName, membership.color)}
         <div class="site-card-body">
           <div class="site-card-title">
-            <span class="site-name">${esc(membership.siteName)}</span>
-            ${daysBadge(membership)}
+            <span class="site-name">${esc(membership.siteName || '网站名称')}</span>
           </div>
-          <div class="site-expiry">到期日 <b>${esc(formatDay(membership.expiry))}</b></div>
+          <div class="site-expiry">到期日 <b>${esc(formatDay(membership.expiry) || '—')}</b></div>
         </div>
-        <span class="chevron">›</span>
+        ${countdownMarkup(membership)}
       </div>
     </article>`;
+  };
+
+  const MEMBERSHIP_GROUPS = [
+    { key: 'expired', title: '已过期' },
+    { key: 'soon', title: '7 天内' },
+    { key: 'month', title: '本月' },
+    { key: 'later', title: '之后' },
+  ];
+
+  const groupedMembershipsMarkup = () => {
+    const buckets = { expired: [], soon: [], month: [], later: [] };
+    state.memberships.forEach((item, index) => buckets[membershipGroupOf(item)].push([item, index]));
+    return MEMBERSHIP_GROUPS.map(({ key, title }) => {
+      const items = buckets[key];
+      if (!items.length) return '';
+      return `<section class="site-group" data-group="${key}">
+        <h3 class="site-group-title">${title}<em>${items.length}</em></h3>
+        ${items.map(([item, index]) => siteCardMarkup(item, index)).join('')}
+      </section>`;
+    }).join('');
+  };
 
   const emptyMarkup = (type) => {
     const isCards = type === 'cards';
@@ -562,7 +635,7 @@
     const sitesBody = state.loading && !state.memberships.length
       ? skeletonMarkup('sites')
       : state.memberships.length
-        ? state.memberships.map((membership, index) => siteCardMarkup(membership, index)).join('')
+        ? groupedMembershipsMarkup()
         : emptyMarkup('sites');
     return `
       ${headerMarkup()}
@@ -582,6 +655,14 @@
   const bindMainEvents = () => {
     $('#logout-btn').addEventListener('click', () => {
       invalidateSession();
+    });
+    $('#theme-btn')?.addEventListener('click', () => {
+      toggleTheme();
+      const dark = resolvedTheme() === 'dark';
+      const btn = $('#theme-btn');
+      btn.innerHTML = lineIcon(dark ? 'sun' : 'moon');
+      btn.title = dark ? '浅色模式' : '深色模式';
+      btn.setAttribute('aria-label', dark ? '切换浅色模式' : '切换深色模式');
     });
 
     $$('.dock-tab').forEach((btn) =>
@@ -710,41 +791,94 @@
 
   /* ---------------------------- 拖拽排序（卡片） ---------------------------- */
 
-  // 仅从手柄开始拖拽。卡片跟随指针，原位置由占位元素保留。
+  // 长按卡片开始拖拽。卡片跟随指针，原位置由占位元素保留。
   function initDragSort() {
     const panel = $('#cards-list');
     if (!panel) return;
     let drag = null;
+    let press = null;
+    const LONG_PRESS_MS = 380;
+    const MOVE_CANCEL_PX = 10;
+
+    const cancelPress = () => {
+      if (!press) return;
+      clearTimeout(press.timer);
+      press = null;
+    };
 
     panel.addEventListener('pointerdown', (event) => {
-      if (drag) return;
-      const handle = event.target.closest('.drag-handle');
-      const card = handle?.closest('.bank-card');
+      if (drag || press) return;
+      if (event.button && event.button !== 0) return;
+      if (event.target.closest('.num-copy, .reveal-btn, .card-info, .card-info-popover')) return;
+      const card = event.target.closest('.bank-card');
       if (!card) return;
-      event.preventDefault();
+      const rect = card.getBoundingClientRect();
+      press = {
+        card,
+        pointerId: event.pointerId,
+        type: event.pointerType || 'mouse',
+        startX: event.clientX,
+        startY: event.clientY,
+        y: event.clientY,
+        pointerOffset: event.clientY - rect.top,
+        timer: setTimeout(() => beginDrag(), LONG_PRESS_MS),
+      };
+      document.addEventListener('pointermove', onPointerMove, true);
+      document.addEventListener('pointerup', onPointerUp, true);
+      document.addEventListener('pointercancel', onPointerUp, true);
+      window.addEventListener('blur', onPointerUp);
+    });
 
+    const detachPress = () => {
+      document.removeEventListener('pointermove', onPointerMove, true);
+      document.removeEventListener('pointerup', onPointerUp, true);
+      document.removeEventListener('pointercancel', onPointerUp, true);
+      window.removeEventListener('blur', onPointerUp);
+    };
+
+    function onPointerMove(event) {
+      if (press && event.pointerId === press.pointerId && !drag) {
+        press.y = event.clientY;
+        if (Math.hypot(event.clientX - press.startX, event.clientY - press.startY) > MOVE_CANCEL_PX) {
+          cancelPress();
+          detachPress();
+        }
+        return;
+      }
+      if (drag) onMove(event);
+    }
+
+    function onPointerUp(event) {
+      if (press && !drag) {
+        cancelPress();
+        detachPress();
+        return;
+      }
+      onEnd(event);
+      detachPress();
+    }
+
+    function beginDrag() {
+      if (!press || drag) return;
+      const { card, pointerId, type, pointerOffset, y } = press;
+      press.timer = null;
+      try { navigator.vibrate?.(12); } catch (_) {}
       const rect = card.getBoundingClientRect();
       const originalStyle = card.getAttribute('style');
       const placeholder = document.createElement('div');
       placeholder.className = 'bank-card drag-placeholder';
       placeholder.style.height = `${rect.height}px`;
       card.before(placeholder);
-      const pointerOffset = event.clientY - rect.top;
       document.body.appendChild(card);
       Object.assign(card.style, {
-        position: 'fixed', left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`,
+        position: 'fixed', left: `${rect.left}px`, top: `${y - pointerOffset}px`, width: `${rect.width}px`,
         margin: '0', zIndex: '50', transform: 'translate3d(0, 0, 0)',
       });
       card.classList.add('dragging');
       document.body.classList.add('sorting-cards');
-      drag = { card, panel, placeholder, originalStyle, pointerId: event.pointerId, type: event.pointerType || 'mouse', pointerOffset };
-
-      try { handle.setPointerCapture(event.pointerId); } catch (_) {}
-      window.addEventListener('blur', onEnd);
-      document.addEventListener('pointermove', onMove, true);
-      document.addEventListener('pointerup', onEnd, true);
-      document.addEventListener('pointercancel', onEnd, true);
-    });
+      drag = { card, panel, placeholder, originalStyle, pointerId, type, pointerOffset };
+      try { card.setPointerCapture(pointerId); } catch (_) {}
+    }
 
     function animateList(before) {
       if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -780,11 +914,6 @@
 
     function onEnd(event) {
       if (!drag || (event?.pointerId !== undefined && event.pointerId !== drag.pointerId)) return;
-      document.removeEventListener('pointermove', onMove, true);
-      document.removeEventListener('pointerup', onEnd, true);
-      document.removeEventListener('pointercancel', onEnd, true);
-      window.removeEventListener('blur', onEnd);
-
       drag.placeholder.before(drag.card);
       drag.placeholder.remove();
       drag.card.classList.remove('dragging');
@@ -792,6 +921,7 @@
       else drag.card.setAttribute('style', drag.originalStyle);
       document.body.classList.remove('sorting-cards');
       dragSuppressUntil = Date.now() + 350;
+      press = null;
       drag = null;
       persistCardOrder();
     }
@@ -904,15 +1034,46 @@
       </div>
     </div>`;
 
+  const sheetPreviewCard = (c) => bankCardMarkup({
+    id: 0,
+    type: c.type || 'credit',
+    bankKey: c.bankKey,
+    bankName: c.bankName,
+    color: c.color,
+    number: c.number,
+    kind: c.kind,
+    network: c.network,
+    expiry: c.expiry,
+    limit: c.limit,
+  }, 0, { preview: true });
+
+  const sheetPreviewSite = (m) => siteCardMarkup({
+    id: 0,
+    siteName: m.siteName,
+    color: m.color,
+    expiry: m.expiry,
+  }, 0, { preview: true });
+
+  const deleteConfirmMarkup = (kind) => `
+    <div class="delete-confirm" id="delete-confirm">
+      <p>确认删除${kind}？此操作不可恢复。</p>
+      <div class="delete-confirm-actions">
+        <button type="button" class="btn" id="delete-cancel">返回</button>
+        <button type="button" class="btn btn-danger" id="delete-confirm-btn">确认删除</button>
+      </div>
+    </div>`;
+
   const cardFormMarkup = (card) => {
     const isEdit = Boolean(card?.id);
     const c = card || { type: 'credit', bankKey: '', bankName: '', color: '#3b6bfa', number: '', kind: '', network: '', expiry: '', limit: null, billingDay: null, repaymentDay: null, benefits: '', annualFee: '' };
     return `
       <form id="card-form" class="sheet-form">
+        <div class="sheet-grabber" aria-hidden="true"></div>
         <div class="sheet-header">
           <h2>${isEdit ? '编辑银行卡' : '新增银行卡'}</h2>
           <button type="button" class="icon-btn sheet-close" data-close>✕</button>
         </div>
+        <div class="sheet-preview" id="sheet-preview">${sheetPreviewCard(c)}</div>
         <div class="type-switch">
           <button type="button" class="type-btn ${c.type === 'credit' ? 'active' : ''}" data-type="credit">信用卡</button>
           <button type="button" class="type-btn ${c.type === 'debit' ? 'active' : ''}" data-type="debit">借记卡</button>
@@ -963,12 +1124,13 @@
           </div>
         </div>
         ${colorRow(c.color)}
-        <div class="sheet-actions">
+        <div class="sheet-actions" id="sheet-actions">
           ${isEdit ? '<button type="button" class="btn btn-danger" id="delete-btn">删除</button>' : ''}
           <div class="sheet-actions-spacer"></div>
           <button type="button" class="btn" data-close>取消</button>
           <button type="submit" class="btn btn-primary">保存</button>
         </div>
+        ${isEdit ? deleteConfirmMarkup('这张银行卡') : ''}
       </form>`;
   };
 
@@ -977,10 +1139,12 @@
     const m = membership || { siteKey: '', siteName: '', color: '#3b6bfa', expiry: '' };
     return `
       <form id="site-form" class="sheet-form">
+        <div class="sheet-grabber" aria-hidden="true"></div>
         <div class="sheet-header">
           <h2>${isEdit ? '编辑网站会员' : '新增网站会员'}</h2>
           <button type="button" class="icon-btn sheet-close" data-close>✕</button>
         </div>
+        <div class="sheet-preview" id="sheet-preview">${sheetPreviewSite(m)}</div>
         ${brandChips('site', m.siteKey, '网站名称')}
         <div class="field">
           <label>到期日</label>
@@ -988,12 +1152,13 @@
           <p class="field-hint">会员按到期日远近自动排序（过期优先置顶）</p>
         </div>
         ${colorRow(m.color)}
-        <div class="sheet-actions">
+        <div class="sheet-actions" id="sheet-actions">
           ${isEdit ? '<button type="button" class="btn btn-danger" id="delete-btn">删除</button>' : ''}
           <div class="sheet-actions-spacer"></div>
           <button type="button" class="btn" data-close>取消</button>
           <button type="submit" class="btn btn-primary">保存</button>
         </div>
+        ${isEdit ? deleteConfirmMarkup('这个会员记录') : ''}
       </form>`;
   };
 
@@ -1022,6 +1187,7 @@
           const type = btn.dataset.type;
           $$('.type-btn', typeSwitch).forEach((b) => b.classList.toggle('active', b === btn));
           $('#credit-fields').style.display = type === 'credit' ? '' : 'none';
+          refreshPreview();
         }),
       );
     }
@@ -1076,7 +1242,34 @@
       colorPicker.addEventListener('input', () => setColor(colorPicker.value, root, true));
     }
 
+    const refreshPreview = () => {
+      const box = $('#sheet-preview', root);
+      if (!box) return;
+      if (tab === 'cards') {
+        const type = $('.type-btn.active', root)?.dataset.type || 'credit';
+        box.innerHTML = sheetPreviewCard({
+          type,
+          bankKey: $('#brand-key', root)?.value,
+          bankName: $('#brand-name', root)?.value.trim() || '银行名称',
+          color: $('#color-picker', root)?.value || root.dataset.pickedColor || '#3b6bfa',
+          number: $('#card-number', root)?.value,
+          kind: $('#card-kind', root)?.value,
+          network: $('#card-network', root)?.value,
+          expiry: $('#card-expiry', root)?.value,
+          limit: $('#card-limit', root)?.value,
+        });
+      } else {
+        box.innerHTML = sheetPreviewSite({
+          siteName: $('#brand-name', root)?.value.trim() || '网站名称',
+          color: $('#color-picker', root)?.value || root.dataset.pickedColor || '#3b6bfa',
+          expiry: $('#site-expiry', root)?.value,
+        });
+      }
+    };
+
     const form = $('.sheet-form', root);
+    form.addEventListener('input', refreshPreview);
+    form.addEventListener('change', refreshPreview);
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       const context = currentSession();
@@ -1093,10 +1286,18 @@
     });
 
     const deleteBtn = $('#delete-btn', root);
-    if (deleteBtn) {
-      deleteBtn.addEventListener('click', async () => {
-        const kind = tab === 'cards' ? '这张银行卡' : '这个会员记录';
-        if (!confirm(`确认删除${kind}？此操作不可恢复。`)) return;
+    const confirmBox = $('#delete-confirm', root);
+    const actions = $('#sheet-actions', root);
+    if (deleteBtn && confirmBox && actions) {
+      deleteBtn.addEventListener('click', () => {
+        actions.classList.add('is-hidden');
+        confirmBox.classList.add('is-open');
+      });
+      $('#delete-cancel', root)?.addEventListener('click', () => {
+        confirmBox.classList.remove('is-open');
+        actions.classList.remove('is-hidden');
+      });
+      $('#delete-confirm-btn', root)?.addEventListener('click', async () => {
         const context = currentSession();
         try {
           if (tab === 'cards') await api(`/api/cards/${id}`, { method: 'DELETE' });
@@ -1129,8 +1330,8 @@
     const picker = $('#color-picker', root);
     if (picker) picker.value = normalized;
     $$('.color-swatch', root).forEach((sw) => sw.classList.toggle('active', sw.dataset.color === normalized));
-    // 实时预览：需要卡片色联动到编辑中表单不好预览，仅记录
     root.dataset.pickedColor = normalized;
+    if (!force && picker) picker.dispatchEvent(new Event('input', { bubbles: true }));
   };
 
   const closeSheet = () => {
