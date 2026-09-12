@@ -80,26 +80,32 @@
     if (themePref() === 'system') applyTheme();
   });
 
-  const syncIosSafeTop = () => {
-    const standalone = window.navigator.standalone === true
-      || matchMedia('(display-mode: standalone)').matches;
-    const ios = /iP(hone|ad|od)/.test(navigator.userAgent)
-      || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    if (!standalone || !ios || !document.body) return;
+  const measureInset = (prop) => {
     const probe = document.createElement('div');
-    probe.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;height:env(safe-area-inset-top,0px)';
+    probe.style.cssText = `position:absolute;visibility:hidden;pointer-events:none;height:env(${prop},0px)`;
     document.body.appendChild(probe);
-    const inset = probe.getBoundingClientRect().height;
+    const value = probe.getBoundingClientRect().height;
     probe.remove();
-    if (inset >= 1) {
+    return value;
+  };
+
+  const syncIosSafeTop = () => {
+    if (!document.body) return;
+    const top = measureInset('safe-area-inset-top');
+    const bottom = measureInset('safe-area-inset-bottom');
+    const viewH = window.visualViewport?.height || window.innerHeight;
+    const reserved = (screen.height || 0) - viewH;
+    // 系统已经把 webview 顶到状态栏下面时，env(safe-area-inset-top) 仍可能报 47/59，再垫就会空出一块。
+    const alreadyBelowStatusBar = top > 8 && reserved >= top + bottom - 12;
+    if (alreadyBelowStatusBar) {
+      document.documentElement.style.setProperty('--safe-top', '0px');
+    } else {
       document.documentElement.style.removeProperty('--safe-top');
-      return;
     }
-    const longSide = Math.max(screen.width || 0, screen.height || 0);
-    document.documentElement.style.setProperty('--safe-top', longSide >= 852 ? '59px' : '47px');
   };
   document.addEventListener('DOMContentLoaded', syncIosSafeTop);
   window.visualViewport?.addEventListener('resize', syncIosSafeTop);
+  window.addEventListener('orientationchange', () => setTimeout(syncIosSafeTop, 300));
 
   const session = { token: localStorage.getItem('mr_token') || '', busy: false, error: '' };
   const state = {

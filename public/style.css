@@ -26,7 +26,7 @@
   --duration: 220ms;
   --dock-size: 58px;
   --dock-inset: 16px;
-  --header-pad-top: 10px;
+  --header-pad-top: 6px;
   --header-row: 40px;
   --header-pad-bottom: 10px;
   --glass-top: rgba(255, 255, 255, 0.58);
@@ -127,14 +127,14 @@ textarea:focus-visible {
 
 /* ------------------------------- 顶栏 + 分段 ------------------------------- */
 
-/* iOS 26 PWA 会采样顶部 fixed 实色来给状态栏着色；必须贴顶、全宽、不透明。 */
+/* iOS 26 采样顶部实色给状态栏着色。高度只用真正画到时钟下面时的 inset，避免系统已让出状态栏后再垫一块。 */
 #status-bleed {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   z-index: 40;
-  height: max(env(safe-area-inset-top, 0px), 12px);
+  height: var(--safe-top);
   background-color: var(--bg);
   pointer-events: none;
 }
